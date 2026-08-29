@@ -1,13 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import type { Database } from "./db.js";
+import type { MapJobInput, MapSlotDef } from "@localmanager/shared";
 
-interface MapJobInput {
-  comuneId: string;
-  runId: string;
-  overlaySlots: string[];
-  basemapRevision: string;
-}
+import type { Database } from "./db.js";
 
 export class MapJobNotFoundError extends Error {}
 export class MapJobStateConflictError extends Error {}
@@ -27,6 +22,76 @@ export function extractOverlaySlots(body: unknown): string[] {
     throw new Error("overlaySlots must be an array of strings");
   }
   return slots;
+}
+
+function asFiniteNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return value;
+}
+
+function parseMapSlots(value: unknown): MapSlotDef[] {
+  if (!Array.isArray(value)) {
+    throw new Error("mapSlots must be an array");
+  }
+  return value.map((raw, index) => {
+    if (!raw || typeof raw !== "object") {
+      throw new Error(`mapSlots[${index}] must be an object`);
+    }
+    const slot = raw as Record<string, unknown>;
+    if (typeof slot.id !== "string" || !slot.id) {
+      throw new Error(`mapSlots[${index}].id is required`);
+    }
+    return {
+      id: slot.id as MapSlotDef["id"],
+      labelIt: typeof slot.labelIt === "string" ? slot.labelIt : String(slot.id),
+      lat: asFiniteNumber(slot.lat, `mapSlots[${index}].lat`),
+      lon: asFiniteNumber(slot.lon, `mapSlots[${index}].lon`),
+      radiusM:
+        typeof slot.radiusM === "number" && Number.isFinite(slot.radiusM)
+          ? slot.radiusM
+          : 100,
+    };
+  });
+}
+
+/** Valida il payload del job mappa: geo obbligatorio per inquadramento stabile. */
+export function parseMapJobInput(body: unknown, runId: string): MapJobInput {
+  if (!body || typeof body !== "object") {
+    throw new Error("map job body must be an object");
+  }
+  const source = body as Record<string, unknown>;
+  if (typeof source.comuneId !== "string" || !source.comuneId) {
+    throw new Error("comuneId is required");
+  }
+  if (typeof source.osmQuery !== "string" || !source.osmQuery) {
+    throw new Error("osmQuery is required");
+  }
+  if (typeof source.basemapRevision !== "string" || !source.basemapRevision) {
+    throw new Error("basemapRevision is required");
+  }
+  if (!source.center || typeof source.center !== "object") {
+    throw new Error("center is required");
+  }
+  const centerRaw = source.center as Record<string, unknown>;
+  const center = {
+    lat: asFiniteNumber(centerRaw.lat, "center.lat"),
+    lon: asFiniteNumber(centerRaw.lon, "center.lon"),
+  };
+  const radiusM = asFiniteNumber(source.radiusM, "radiusM");
+  if (radiusM <= 0) throw new Error("radiusM must be > 0");
+
+  return {
+    comuneId: source.comuneId,
+    runId,
+    overlaySlots: extractOverlaySlots(body),
+    basemapRevision: source.basemapRevision,
+    osmQuery: source.osmQuery,
+    center,
+    radiusM,
+    mapSlots: parseMapSlots(source.mapSlots),
+  };
 }
 
 export function decodeMapContent(body: unknown): Buffer {
@@ -67,17 +132,7 @@ export async function enqueueMapJob(
     throw new MapJobOwnershipError("Run belongs to another user");
   }
 
-  const source = body as { basemapRevision?: unknown; comuneId?: unknown };
-  const input: MapJobInput = {
-    comuneId:
-      typeof source.comuneId === "string" && source.comuneId
-        ? source.comuneId
-        : "069084",
-    runId,
-    overlaySlots: extractOverlaySlots(body),
-    basemapRevision:
-      typeof source.basemapRevision === "string" ? source.basemapRevision : "v0",
-  };
+  const input = parseMapJobInput(body, runId);
   const result = await pool.query(
     `INSERT INTO map_jobs (id, run_id, status, input_json)
      VALUES ($1, $2, 'pending', $3)

@@ -1,8 +1,14 @@
+import type { MapSlotDef } from "./types.js";
+
 export interface MapJobInput {
   comuneId: string;
   runId: string;
   overlaySlots: string[];
   basemapRevision: string;
+  osmQuery: string;
+  center: { lat: number; lon: number };
+  radiusM: number;
+  mapSlots: MapSlotDef[];
 }
 
 export type MapJobStatus = "pending" | "running" | "ready" | "failed";

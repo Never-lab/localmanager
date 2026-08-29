@@ -1,5 +1,6 @@
 import type {
   GameState,
+  MapGeo,
   ProjectTemplateId,
   StaffRole,
 } from "@localmanager/shared";
@@ -32,6 +33,7 @@ export interface ComuneSeedPayload {
   sourceYear: number | null;
   sources: string[];
   projects: GameState["comune"]["projects"];
+  map: MapGeo;
 }
 
 interface GameStore {
@@ -57,6 +59,7 @@ interface GameStore {
   issuePressRelease: (tone: "people" | "political") => void;
   resolveEvent: (eventId: string, choiceId: string) => void;
   closeMonth: () => Promise<void>;
+  retryMap: () => Promise<void>;
   resumeGame: () => Promise<void>;
   returnToMenu: () => void;
   reset: () => void;
@@ -82,6 +85,81 @@ function authorization(token: string): HeadersInit {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+}
+
+/** Corpo job mappa con geo stabile dalla seed della run. */
+export function buildMapJobBody(state: GameState, runId: string) {
+  const { map } = state.comune;
+  return {
+    comuneId: state.comuneId,
+    runId,
+    overlaySlots: state.overlay.activeSlots,
+    basemapRevision: map.basemapRevision,
+    osmQuery: map.osmQuery,
+    center: map.center,
+    radiusM: map.radiusM,
+    mapSlots: map.mapSlots,
+  };
+}
+
+async function pollMapUntilReady(runId: string, token: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const mapResponse = await fetch(
+      `/api/runs/${encodeURIComponent(runId)}/map`,
+      { headers: authorization(token) },
+    );
+    if (mapResponse.status === 200) {
+      const mapVersion = Number(
+        mapResponse.headers.get("x-map-version") ?? 0,
+      );
+      const oldUrl = useGameStore.getState().mapUrl;
+      const mapUrl = URL.createObjectURL(await mapResponse.blob());
+      if (oldUrl?.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
+      useGameStore.setState((store) => ({
+        mapUrl,
+        state:
+          store.state && mapVersion > store.state.overlay.mapVersion
+            ? {
+                ...store.state,
+                overlay: {
+                  ...store.state.overlay,
+                  dirty: false,
+                  mapVersion,
+                },
+              }
+            : store.state,
+      }));
+      return;
+    }
+    if (mapResponse.status !== 202) {
+      throw new Error("Mappa non disponibile.");
+    }
+    const status = (await mapResponse.json()) as { status?: string };
+    if (status.status === "failed") {
+      throw new Error("Generazione della mappa non riuscita.");
+    }
+    await pause(750);
+  }
+  throw new Error("La mappa richiede più tempo del previsto.");
+}
+
+async function enqueueMapJob(
+  state: GameState,
+  runId: string,
+  token: string,
+): Promise<void> {
+  const jobResponse = await fetch(
+    `/api/runs/${encodeURIComponent(runId)}/map-jobs`,
+    {
+      method: "POST",
+      headers: authorization(token),
+      body: JSON.stringify(buildMapJobBody(state, runId)),
+    },
+  );
+  if (!jobResponse.ok && jobResponse.status !== 409) {
+    throw new Error("Aggiornamento della mappa non avviato.");
+  }
+  await pollMapUntilReady(runId, token);
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -136,13 +214,51 @@ export const useGameStore = create<GameStore>((set, get) => {
         });
         return;
       }
+      if (!comuneSeed.map) {
+        set({
+          errorIt:
+            "Manca la geolocalizzazione del comune. Ricarica i dati e riprova.",
+        });
+        return;
+      }
+      const state = createInitialGameState({ mayorName: name, comuneSeed });
+      const token = get().token;
+      const runId = token ? crypto.randomUUID() : null;
       set({
         screen: "game",
-        state: createInitialGameState({ mayorName: name, comuneSeed }),
-        runId: get().token ? crypto.randomUUID() : null,
+        state,
+        runId,
         mapUrl: null,
         errorIt: null,
       });
+
+      // Account online: salva run e genera basemap subito alla scelta comune.
+      if (!token || !runId) return;
+      void (async () => {
+        set({ mapJobPending: true });
+        try {
+          const saveResponse = await fetch(
+            `/api/saves/${encodeURIComponent(runId)}`,
+            {
+              method: "PUT",
+              headers: authorization(token),
+              body: JSON.stringify(state),
+            },
+          );
+          if (!saveResponse.ok) throw new Error("Salvataggio non riuscito.");
+          localStorage.setItem(LAST_RUN_ID_KEY, runId);
+          await enqueueMapJob(state, runId, token);
+        } catch (error) {
+          set({
+            errorIt:
+              error instanceof Error
+                ? error.message
+                : "Generazione della mappa non riuscita.",
+          });
+        } finally {
+          set({ mapJobPending: false });
+        }
+      })();
     },
 
     startProject: (templateId) => {
@@ -203,65 +319,29 @@ export const useGameStore = create<GameStore>((set, get) => {
         localStorage.setItem(LAST_RUN_ID_KEY, runId);
         if (!next.overlay.dirty) return;
 
-        const jobResponse = await fetch(
-          `/api/runs/${encodeURIComponent(runId)}/map-jobs`,
-          {
-            method: "POST",
-            headers: authorization(token),
-            body: JSON.stringify({
-              comuneId: next.comuneId,
-              runId,
-              overlaySlots: next.overlay.activeSlots,
-              basemapRevision: "v0",
-            }),
-          },
-        );
-        if (!jobResponse.ok && jobResponse.status !== 409) {
-          throw new Error("Aggiornamento della mappa non avviato.");
-        }
-
-        for (let attempt = 0; attempt < 20; attempt += 1) {
-          const mapResponse = await fetch(
-            `/api/runs/${encodeURIComponent(runId)}/map`,
-            { headers: authorization(token) },
-          );
-          if (mapResponse.status === 200) {
-            const mapVersion = Number(
-              mapResponse.headers.get("x-map-version") ?? 0,
-            );
-            const oldUrl = get().mapUrl;
-            const mapUrl = URL.createObjectURL(await mapResponse.blob());
-            if (oldUrl?.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
-            set((store) => ({
-              mapUrl,
-              state:
-                store.state && mapVersion > store.state.overlay.mapVersion
-                  ? {
-                      ...store.state,
-                      overlay: {
-                        ...store.state.overlay,
-                        dirty: false,
-                        mapVersion,
-                      },
-                    }
-                  : store.state,
-            }));
-            return;
-          }
-          if (mapResponse.status !== 202) {
-            throw new Error("Mappa non disponibile.");
-          }
-          const status = (await mapResponse.json()) as { status?: string };
-          if (status.status === "failed") {
-            throw new Error("Generazione della mappa non riuscita.");
-          }
-          await pause(750);
-        }
-        throw new Error("La mappa richiede più tempo del previsto.");
+        await enqueueMapJob(next, runId, token);
       } catch (error) {
         set({
           errorIt:
             error instanceof Error ? error.message : "Operazione non riuscita.",
+        });
+      } finally {
+        set({ mapJobPending: false });
+      }
+    },
+
+    retryMap: async () => {
+      const { state, token, runId, mapJobPending } = get();
+      if (!state || !token || !runId || mapJobPending) return;
+      set({ mapJobPending: true, errorIt: null });
+      try {
+        await enqueueMapJob(state, runId, token);
+      } catch (error) {
+        set({
+          errorIt:
+            error instanceof Error
+              ? error.message
+              : "Generazione della mappa non riuscita.",
         });
       } finally {
         set({ mapJobPending: false });

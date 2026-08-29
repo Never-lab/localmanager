@@ -16,9 +16,28 @@ requests.Session = MagicMock
 sys.modules.setdefault("requests", requests)
 
 render = types.ModuleType("render")
-render.render_map = MagicMock()
+render.render_basemap = MagicMock()
+render.composite_overlay = MagicMock()
 sys.modules.setdefault("render", render)
 import worker
+
+
+SAMPLE_INPUT = {
+    "overlaySlots": ["centro"],
+    "osmQuery": "Pescara, Abruzzo, Italy",
+    "center": {"lat": 42.46, "lon": 14.21},
+    "radiusM": 1500,
+    "basemapRevision": "2026-08-29",
+    "mapSlots": [
+        {
+            "id": "centro",
+            "labelIt": "Centro",
+            "lat": 42.46,
+            "lon": 14.21,
+            "radiusM": 120,
+        }
+    ],
+}
 
 
 class WorkerTests(unittest.TestCase):
@@ -36,29 +55,33 @@ class WorkerTests(unittest.TestCase):
             "http://api:3001",
         )
 
-    def test_process_job_uses_santa_maria_imbaro_query(self) -> None:
+    def test_process_job_uses_input_osm_query_and_cache(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch.object(worker, "DATA_DIR", Path(directory)),
-                patch.object(worker, "render_map") as render_map,
+                patch.object(worker, "render_basemap") as render_basemap,
+                patch.object(worker, "composite_overlay") as composite_overlay,
                 patch.object(worker, "complete_job", return_value=1),
                 patch.object(Path, "replace"),
             ):
-                worker.process_job(
-                    MagicMock(),
-                    "key",
-                    {"id": 1, "runId": "run", "input": {"overlaySlots": []}},
+                job = {"id": 1, "runId": "run", "input": SAMPLE_INPUT}
+                worker.process_job(MagicMock(), "key", job)
+                self.assertEqual(
+                    render_basemap.call_args.args[0], "Pescara, Abruzzo, Italy"
                 )
-
-        self.assertEqual(
-            render_map.call_args.args[0], "Santa Maria Imbaro, Abruzzo, Italy"
-        )
+                # Second job same revision: cache hit, no new basemap.
+                render_basemap.reset_mock()
+                Path(directory, "run", "basemap_2026-08-29.png").write_bytes(b"png")
+                worker.process_job(MagicMock(), "key", job)
+                render_basemap.assert_not_called()
+                self.assertEqual(composite_overlay.call_count, 2)
 
     def test_rename_failure_after_completion_does_not_fail_ready_job(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch.object(worker, "DATA_DIR", Path(directory)),
-                patch.object(worker, "render_map"),
+                patch.object(worker, "render_basemap"),
+                patch.object(worker, "composite_overlay"),
                 patch.object(worker, "complete_job", return_value=2),
                 patch.object(Path, "replace", side_effect=OSError("rename failed")),
                 patch.object(worker, "fail_job") as fail_job,
@@ -67,7 +90,7 @@ class WorkerTests(unittest.TestCase):
                 worker.process_job(
                     MagicMock(),
                     "key",
-                    {"id": 1, "runId": "run", "input": {"overlaySlots": []}},
+                    {"id": 1, "runId": "run", "input": SAMPLE_INPUT},
                 )
 
         fail_job.assert_not_called()

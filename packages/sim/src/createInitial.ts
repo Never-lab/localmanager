@@ -66,6 +66,7 @@ export function createInitialGameState(options: NewGameOptions): GameState {
       projects,
       sourceYear: seeded?.sourceYear ?? null,
       sources: seeded?.sources ?? ["data/comuni/santa-maria-imbaro"],
+      map: seeded?.map ?? fixture.map,
     },
   };
 }

@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { MapGeo } from "@localmanager/shared";
 import { findComune, loadCatalog } from "./catalog.js";
 import { parseCsv, rowsToObjects } from "./csv.js";
 import {
@@ -7,6 +8,7 @@ import {
   mapBdapToBudget,
   mapCupToProjects,
 } from "./mapSeed.js";
+import { resolveComuneGeo } from "./nominatim.js";
 import type { CatalogComune, ComuneSeed, HydrateResult } from "./types.js";
 
 export interface HydrateOptions {
@@ -18,6 +20,8 @@ export interface HydrateOptions {
   speseUrl?: string;
   cupUrl?: string;
   fetchImpl?: typeof fetch;
+  nominatimUrl?: string;
+  basemapRevision?: string;
   onStatus?: (status: HydrateResult["status"]) => void;
 }
 
@@ -80,6 +84,29 @@ function meanAgeFallback(population: number): number {
   return 45;
 }
 
+function hasMap(seed: ComuneSeed): seed is ComuneSeed & { map: MapGeo } {
+  return Boolean(seed.map?.osmQuery && seed.map?.center);
+}
+
+async function ensureSeedMap(
+  seed: ComuneSeed,
+  meta: CatalogComune,
+  options: HydrateOptions,
+): Promise<HydrateResult> {
+  if (hasMap(seed)) {
+    return { status: "ready", seed };
+  }
+  const geo = await resolveComuneGeo(meta, {
+    fetchImpl: options.fetchImpl,
+    nominatimUrl: options.nominatimUrl,
+    basemapRevision: options.basemapRevision,
+  });
+  if ("errorIt" in geo) {
+    return { status: "failed", errorIt: geo.errorIt };
+  }
+  return { status: "ready", seed: { ...seed, map: geo } };
+}
+
 export async function hydrateComune(
   istatId: string,
   options: HydrateOptions,
@@ -92,8 +119,17 @@ export async function hydrateComune(
     if (options.fixtureDir) {
       const seeded = await tryFixture(options.fixtureDir, id);
       if (seeded) {
-        notify("ready");
-        return { status: "ready", seed: seeded };
+        const catalog = await loadCatalog();
+        const meta = findComune(catalog, id) ?? {
+          id,
+          name: seeded.name,
+          province: seeded.province,
+          provinceName: null,
+          region: seeded.region,
+        };
+        const withMap = await ensureSeedMap(seeded, meta, options);
+        if (withMap.status === "ready") notify("ready");
+        return withMap;
       }
     }
 
@@ -109,8 +145,14 @@ export async function hydrateComune(
     const diskCache = join(options.cacheDir, `${id}.json`);
     if (await exists(diskCache)) {
       const seed = JSON.parse(await readFile(diskCache, "utf8")) as ComuneSeed;
-      notify("ready");
-      return { status: "ready", seed };
+      const withMap = await ensureSeedMap(seed, meta, options);
+      if (withMap.status === "ready") {
+        if (!hasMap(seed) && withMap.seed) {
+          await writeFile(diskCache, JSON.stringify(withMap.seed, null, 0), "utf8");
+        }
+        notify("ready");
+      }
+      return withMap;
     }
 
     notify("downloading");
@@ -175,12 +217,23 @@ export async function hydrateComune(
       };
     }
 
-    const seed = buildSeed(meta, budget, projects, population, [
-      entrateUrl,
-      speseUrl,
-      cupUrl,
-      catalog.source,
-    ]);
+    const geo = await resolveComuneGeo(meta, {
+      fetchImpl,
+      nominatimUrl: options.nominatimUrl,
+      basemapRevision: options.basemapRevision,
+    });
+    if ("errorIt" in geo) {
+      return { status: "failed", errorIt: geo.errorIt };
+    }
+
+    const seed = buildSeed(
+      meta,
+      budget,
+      projects,
+      population,
+      [entrateUrl, speseUrl, cupUrl, catalog.source],
+      geo,
+    );
 
     await mkdir(options.cacheDir, { recursive: true });
     await writeFile(
@@ -223,6 +276,7 @@ function buildSeed(
   projects: ComuneSeed["projects"],
   population: number,
   sources: string[],
+  map: MapGeo,
 ): ComuneSeed {
   return {
     comuneId: meta.id,
@@ -233,6 +287,7 @@ function buildSeed(
     meanAge: meanAgeFallback(population),
     budget,
     projects,
+    map,
     fetchedAt: new Date().toISOString(),
     sources,
   };
@@ -245,6 +300,7 @@ export function buildSeedFromRows(
   spese: Record<string, string>[],
   cup: Record<string, string>[],
   sourceUrls: string[],
+  map: MapGeo,
 ): HydrateResult {
   const budget = mapBdapToBudget(entrate, spese, sourceUrls);
   if (!budget) {
@@ -269,6 +325,6 @@ export function buildSeedFromRows(
   }
   return {
     status: "ready",
-    seed: buildSeed(meta, budget, projects, population, sourceUrls),
+    seed: buildSeed(meta, budget, projects, population, sourceUrls, map),
   };
 }

@@ -9,6 +9,7 @@ import {
   decodeMapContent,
   extractOverlaySlots,
   MapJobStateConflictError,
+  parseMapJobInput,
 } from "../src/mapJobs.js";
 
 test("map jobs accept overlay slots directly", () => {
@@ -27,6 +28,49 @@ test("map jobs accept slots from a game-state overlay", () => {
 
 test("map jobs reject malformed overlay slots", () => {
   assert.throws(() => extractOverlaySlots({ overlaySlots: [42] }), /overlaySlots/);
+});
+
+test("enqueue rejects map job without center", () => {
+  assert.throws(
+    () =>
+      parseMapJobInput(
+        {
+          comuneId: "069084",
+          overlaySlots: [],
+          basemapRevision: "v0",
+          osmQuery: "x",
+          radiusM: 1000,
+          mapSlots: [],
+        },
+        "run-1",
+      ),
+    /center/,
+  );
+});
+
+test("parseMapJobInput accepts full geo payload", () => {
+  const input = parseMapJobInput(
+    {
+      comuneId: "069084",
+      overlaySlots: ["centro"],
+      basemapRevision: "2026-08-29",
+      osmQuery: "Santa Maria Imbaro, Abruzzo, Italy",
+      center: { lat: 42.2167, lon: 14.45 },
+      radiusM: 1200,
+      mapSlots: [
+        {
+          id: "centro",
+          labelIt: "Centro",
+          lat: 42.2167,
+          lon: 14.45,
+          radiusM: 120,
+        },
+      ],
+    },
+    "run-1",
+  );
+  assert.equal(input.runId, "run-1");
+  assert.equal(input.center.lat, 42.2167);
 });
 
 test("map completion decodes base64 PNG content", () => {
