@@ -13,10 +13,15 @@ import {
   RIVAL_INTERVAL_MONTHS,
 } from "./config.js";
 import { resolveElection } from "./election.js";
+import { drawMonthlyEvent } from "./events.js";
 import { loadComune } from "./loadComune.js";
 import { nextRandom } from "./rng.js";
 
 const comune = loadComune();
+
+export function canCloseMonth(state: GameState): boolean {
+  return state.status === "playing" && state.pendingEvents.length === 0;
+}
 
 export function advanceMonth(state: GameState): GameState {
   if (state.status !== "playing") {
@@ -47,6 +52,7 @@ export function advanceMonth(state: GameState): GameState {
   const completedProjects: CompletedProject[] = [...state.completedProjects];
   const activeSlots = [...state.overlay.activeSlots];
   let overlayDirty = state.overlay.dirty;
+  let pendingEvents = [...state.pendingEvents];
 
   for (const project of state.activeProjects) {
     const monthsRemaining = project.monthsRemaining - 1;
@@ -109,12 +115,14 @@ export function advanceMonth(state: GameState): GameState {
     ? {
         heat: CLAMP(state.rival.heat + RIVAL_HEAT_GAIN),
         lastMoveMonth: month,
-        pendingEvent: {
-          kind: "press_attack" as const,
-          messageIt: "Il rivale attacca la gestione del Comune sulla stampa.",
-        },
       }
     : state.rival;
+
+  if (pendingEvents.length === 0) {
+    const drawn = drawMonthlyEvent(seed, rivalMove);
+    pendingEvents = [drawn.event];
+    seed = drawn.seed;
+  }
 
   log.push({
     month,
@@ -132,6 +140,7 @@ export function advanceMonth(state: GameState): GameState {
     activeProjects,
     completedProjects,
     provinceRequest,
+    pendingEvents,
     rival,
     overlay: {
       ...state.overlay,

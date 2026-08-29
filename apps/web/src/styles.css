@@ -530,6 +530,15 @@ fieldset legend {
   font-size: 0.82rem;
 }
 
+.event-card {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.event-card strong {
+  color: #f7eee1;
+}
+
 .button-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
