@@ -11,9 +11,9 @@ This project uses [Railway IaC](https://docs.railway.com/infrastructure-as-code)
 | --- | --- |
 | Source | GitHub `Never-lab/localmanager` (branch you deploy) |
 | Root Directory | *(empty / repo root)* |
-| Builder | Railpack / Nixpacks |
-| Build command | `npm ci && npm run build` |
-| Start command | `npm run start -w @localmanager/api` |
+| Builder | Railpack / Nixpacks (auto) |
+| Build command | *(leave empty — uses `npm run build` from package.json)* or `npm ci && npm run build` |
+| Start command | *(leave empty — uses root `"start"` → API)* or `npm run start -w @localmanager/api` |
 | Healthcheck path | `/api/health` |
 
 Variables:
