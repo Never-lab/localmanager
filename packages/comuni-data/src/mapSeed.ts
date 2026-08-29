@@ -49,6 +49,19 @@ function field(row: Record<string, string>, names: string[]): string {
   return "";
 }
 
+/** Educational floor so hydrated comuni stay playable. */
+export const MIN_MONTHLY_SURPLUS = 5_000;
+/** Cap financing debt stock at N months of base income. */
+export const DEBT_CAP_MONTHS = 36;
+
+export function capOpeningDebt(
+  rawDebt: number,
+  monthlyBaseIncome: number,
+): number {
+  const cap = Math.max(0, monthlyBaseIncome) * DEBT_CAP_MONTHS;
+  return Math.min(Math.max(0, rawDebt), cap);
+}
+
 /**
  * Map BDAP-style entrate/spese rows for one ente into game budget fields.
  * Expects competency totals (or sums all numeric measure columns).
@@ -108,7 +121,10 @@ export function mapBdapToBudget(
 
   // ponytail: opening cash ≈ 2 months net buffer from yearly flows (no dedicated fondo-cassa column)
   const monthlyBaseIncome = Math.round(entrate / 12);
-  const monthlyMaintenance = Math.round(spese / 12);
+  let monthlyMaintenance = Math.round(spese / 12);
+  if (monthlyBaseIncome - monthlyMaintenance < MIN_MONTHLY_SURPLUS) {
+    monthlyMaintenance = Math.max(0, monthlyBaseIncome - MIN_MONTHLY_SURPLUS);
+  }
   const openingCash = Math.max(
     0,
     Math.round((entrate - spese) / 6 + monthlyBaseIncome * 2),

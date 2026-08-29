@@ -5,6 +5,7 @@ import { resolveBdapDumpUrls, resolveBdapPatrimonioDumpUrl } from "./bdapUrls.js
 import { findComune, loadCatalog } from "./catalog.js";
 import { parseCsv, rowsToObjects } from "./csv.js";
 import {
+  capOpeningDebt,
   filterRowsByIstat,
   mapBdapOpeningDebt,
   mapBdapToBudget,
@@ -246,7 +247,10 @@ export async function hydrateComune(
           "Bilancio BDAP non disponibile o incompleto per questo comune. Scegline un altro o riprova più tardi.",
       };
     }
-    budget.openingDebt = mapBdapOpeningDebt(patrimonio);
+    budget.openingDebt = capOpeningDebt(
+      mapBdapOpeningDebt(patrimonio),
+      budget.monthlyBaseIncome,
+    );
     if (patrimonioUrl) {
       budget.sourceUrls = [...budget.sourceUrls, patrimonioUrl];
     }
@@ -374,7 +378,10 @@ export function buildSeedFromRows(
       errorIt: "Bilancio BDAP non disponibile o incompleto per questo comune.",
     };
   }
-  budget.openingDebt = mapBdapOpeningDebt(patrimonio);
+  budget.openingDebt = capOpeningDebt(
+    mapBdapOpeningDebt(patrimonio),
+    budget.monthlyBaseIncome,
+  );
   const cupProjects = mapCupToProjects(cup, 4);
   const projects =
     cupProjects.length > 0 ? cupProjects : mapBdapToProjects(spese, 4);

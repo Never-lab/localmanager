@@ -4,7 +4,7 @@ import type {
   StaffRole,
 } from "@localmanager/shared";
 import { LAST_RUN_ID_KEY, useGameStore, type ComuneSeedPayload } from "./store/gameStore";
-import { canCloseMonth, electionForecast } from "@localmanager/sim";
+import { canCloseMonth, electionForecast, forecastMonthCash } from "@localmanager/sim";
 import { Icon, type IconName } from "./ui/Icon";
 import {
   loadThemePref,
@@ -578,6 +578,13 @@ function GameScreen() {
     closeMonth,
   } = useGameStore.getState();
   const forecast = electionForecast(state);
+  const cashForecast = forecastMonthCash(state);
+  const cashHint =
+    cashForecast.net < 0
+      ? state.staff.some((m) => m.hired)
+        ? "Congeda personale o chiedi fondi alla Provincia"
+        : "Chiedi fondi alla Provincia (esito in ~2 mesi)"
+      : null;
   const monthClosable = canCloseMonth(state);
   const closeBlockedReason = pending
     ? "Attendi il completamento della mappa prima di proseguire."
@@ -795,6 +802,35 @@ function GameScreen() {
                 <span className="eyebrow">Debito residuo</span>
               </>
             )}
+            <div className="cash-forecast">
+              <span className="eyebrow">Previsione mese</span>
+              <ul>
+                <li>
+                  <span>Entrate base</span>
+                  <strong>+{money.format(cashForecast.income)}</strong>
+                </li>
+                <li>
+                  <span>Manutenzione</span>
+                  <strong>−{money.format(cashForecast.maintenance)}</strong>
+                </li>
+                <li>
+                  <span>Personale</span>
+                  <strong>−{money.format(cashForecast.staffCost)}</strong>
+                </li>
+                <li>
+                  <span>Rata mutuo</span>
+                  <strong>−{money.format(cashForecast.debtService)}</strong>
+                </li>
+                <li className="cash-forecast-net">
+                  <span>Netto previsto</span>
+                  <strong>
+                    {cashForecast.net >= 0 ? "+" : "−"}
+                    {money.format(Math.abs(cashForecast.net))}
+                  </strong>
+                </li>
+              </ul>
+              {cashHint && <p className="close-hint">{cashHint}</p>}
+            </div>
           </section>
           <section className="panel">
             <div className="panel-head">

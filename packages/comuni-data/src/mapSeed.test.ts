@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSeedFromRows,
+  capOpeningDebt,
+  DEBT_CAP_MONTHS,
   filterRowsByIstat,
   mapBdapOpeningDebt,
   mapBdapToBudget,
   mapBdapToProjects,
   mapCupToProjects,
+  MIN_MONTHLY_SURPLUS,
   parseNumber,
 } from "./index.js";
 
@@ -93,6 +96,37 @@ describe("mapBdapToBudget", () => {
     expect(budget!.monthlyBaseIncome).toBe(100_000);
     expect(budget!.monthlyMaintenance).toBe(80_000);
     expect(budget!.sourceYear).toBe(2015);
+  });
+
+  it("lowers maintenance to keep a minimum monthly surplus", () => {
+    const budget = mapBdapToBudget(
+      [{ Accertamenti: "120.000", "Esercizio finanziario": "2023" }],
+      [{ Impegni: "600.000" }],
+      ["https://example.test/e", "https://example.test/s"],
+    );
+    expect(budget).not.toBeNull();
+    expect(budget!.monthlyBaseIncome).toBe(10_000);
+    expect(budget!.monthlyMaintenance).toBe(10_000 - MIN_MONTHLY_SURPLUS);
+  });
+
+  it("does not raise income when surplus is already enough", () => {
+    const budget = mapBdapToBudget(
+      [{ Accertamenti: "1.200.000", "Esercizio finanziario": "2023" }],
+      [{ Impegni: "960.000" }],
+      ["https://example.test/e", "https://example.test/s"],
+    );
+    expect(budget!.monthlyBaseIncome).toBe(100_000);
+    expect(budget!.monthlyMaintenance).toBe(80_000);
+  });
+});
+
+describe("capOpeningDebt", () => {
+  it("caps raw debt at income × DEBT_CAP_MONTHS", () => {
+    expect(capOpeningDebt(10_000_000, 100_000)).toBe(100_000 * DEBT_CAP_MONTHS);
+  });
+
+  it("leaves smaller debt unchanged", () => {
+    expect(capOpeningDebt(50_000, 100_000)).toBe(50_000);
   });
 });
 
