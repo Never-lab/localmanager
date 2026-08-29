@@ -577,7 +577,8 @@ fieldset legend {
 }
 
 .map-stage img,
-.map-stage svg {
+.map-stage svg,
+.map-stage .map-placeholder {
   position: absolute;
   inset: 0;
   width: 100%;

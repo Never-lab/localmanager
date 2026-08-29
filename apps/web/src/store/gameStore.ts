@@ -67,16 +67,38 @@ interface GameStore {
 }
 
 export const LAST_RUN_ID_KEY = "localmanager:lastRunId";
+export const TOKEN_KEY = "localmanager:token";
 
-const initialState = {
+const emptyState = {
   screen: "auth" as Screen,
-  state: null,
-  token: null,
-  runId: null,
-  mapUrl: null,
+  state: null as GameState | null,
+  token: null as string | null,
+  runId: null as string | null,
+  mapUrl: null as string | null,
   mapJobPending: false,
-  errorIt: null,
+  errorIt: null as string | null,
 };
+
+function readStoredToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function persistToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function sessionExpiredMessage(): string {
+  return "Sessione scaduta. Accedi di nuovo.";
+}
 
 const pause = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -103,12 +125,25 @@ export function buildMapJobBody(state: GameState, runId: string) {
   };
 }
 
+function expireSession(): void {
+  persistToken(null);
+  useGameStore.setState({
+    token: null,
+    screen: "auth",
+    errorIt: sessionExpiredMessage(),
+  });
+}
+
 async function pollMapUntilReady(runId: string, token: string): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const mapResponse = await fetch(
       `/api/runs/${encodeURIComponent(runId)}/map`,
       { headers: authorization(token) },
     );
+    if (mapResponse.status === 401) {
+      expireSession();
+      throw new Error(sessionExpiredMessage());
+    }
     if (mapResponse.status === 200) {
       const mapVersion = Number(
         mapResponse.headers.get("x-map-version") ?? 0,
@@ -132,6 +167,9 @@ async function pollMapUntilReady(runId: string, token: string): Promise<void> {
       }));
       return;
     }
+    if (mapResponse.status === 404) {
+      throw new Error("Mappa assente.");
+    }
     if (mapResponse.status !== 202) {
       throw new Error("Mappa non disponibile.");
     }
@@ -142,6 +180,25 @@ async function pollMapUntilReady(runId: string, token: string): Promise<void> {
     await pause(750);
   }
   throw new Error("La mappa richiede più tempo del previsto.");
+}
+
+/** Carica artifact esistente; se manca, encola un job e aspetta. */
+async function ensureMapReady(
+  state: GameState,
+  runId: string,
+  token: string,
+): Promise<void> {
+  try {
+    await pollMapUntilReady(runId, token);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === sessionExpiredMessage()
+    ) {
+      throw error;
+    }
+    await enqueueMapJob(state, runId, token);
+  }
 }
 
 async function enqueueMapJob(
@@ -157,6 +214,10 @@ async function enqueueMapJob(
       body: JSON.stringify(buildMapJobBody(state, runId)),
     },
   );
+  if (jobResponse.status === 401) {
+    expireSession();
+    throw new Error(sessionExpiredMessage());
+  }
   if (!jobResponse.ok && jobResponse.status !== 409) {
     throw new Error("Aggiornamento della mappa non avviato.");
   }
@@ -169,8 +230,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     else set({ errorIt: result.errorIt });
   };
 
+  const storedToken = readStoredToken();
+
   return {
-    ...initialState,
+    ...emptyState,
+    token: storedToken,
+    screen: storedToken ? "menu" : "auth",
 
     authenticate: async (mode, email, password) => {
       set({ errorIt: null });
@@ -188,6 +253,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           );
         }
         const { token } = (await response.json()) as { token: string };
+        persistToken(token);
         set({ token, screen: "menu", errorIt: null });
       } catch (error) {
         set({
@@ -199,7 +265,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-    continueAsGuest: () => set({ screen: "menu", token: null, errorIt: null }),
+    continueAsGuest: () => {
+      persistToken(null);
+      set({ screen: "menu", token: null, errorIt: null });
+    },
     goToSetup: () => set({ screen: "setup", errorIt: null }),
 
     startGame: (mayorName, comuneSeed) => {
@@ -246,6 +315,10 @@ export const useGameStore = create<GameStore>((set, get) => {
               body: JSON.stringify(state),
             },
           );
+          if (saveResponse.status === 401) {
+            expireSession();
+            return;
+          }
           if (!saveResponse.ok) throw new Error("Salvataggio non riuscito.");
           localStorage.setItem(LAST_RUN_ID_KEY, runId);
           await enqueueMapJob(state, runId, token);
@@ -316,6 +389,10 @@ export const useGameStore = create<GameStore>((set, get) => {
             body: JSON.stringify(next),
           },
         );
+        if (saveResponse.status === 401) {
+          expireSession();
+          return;
+        }
         if (!saveResponse.ok) throw new Error("Salvataggio non riuscito.");
         localStorage.setItem(LAST_RUN_ID_KEY, runId);
         if (!next.overlay.dirty) return;
@@ -360,10 +437,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         });
         return;
       }
+      set({ mapJobPending: true, errorIt: null });
       try {
         const response = await fetch(`/api/saves/${encodeURIComponent(runId)}`, {
           headers: authorization(token),
         });
+        if (response.status === 401) {
+          expireSession();
+          return;
+        }
         if (!response.ok) throw new Error("Salvataggio non trovato.");
         const payload = (await response.json()) as {
           runId: string;
@@ -376,13 +458,17 @@ export const useGameStore = create<GameStore>((set, get) => {
           mapUrl: null,
           errorIt: null,
         });
+        await ensureMapReady(payload.state, payload.runId, token);
       } catch (error) {
+        if (get().screen === "auth") return;
         set({
           errorIt:
             error instanceof Error
               ? error.message
               : "Impossibile riprendere la partita.",
         });
+      } finally {
+        set({ mapJobPending: false });
       }
     },
 
@@ -402,7 +488,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     reset: () => {
       const mapUrl = get().mapUrl;
       if (mapUrl?.startsWith("blob:")) URL.revokeObjectURL(mapUrl);
-      set({ ...initialState });
+      persistToken(null);
+      set({ ...emptyState });
     },
   };
 });

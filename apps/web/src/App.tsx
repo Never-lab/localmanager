@@ -112,7 +112,7 @@ function AuthScreen() {
           <ThemeToggle />
         </div>
         <p className="brand-mark">LocalManager</p>
-        <p className="eyebrow">Comune di Santa Maria Imbaro</p>
+        <p className="eyebrow">Simulatore di amministrazione comunale</p>
         <h1>Entra in municipio</h1>
         <p className="lead">
           Quarantotto mesi per amministrare risorse, consenso e territorio.
@@ -510,6 +510,7 @@ function Meter({ label, value }: { label: string; value: number }) {
 function MapPanel() {
   const state = useGameStore((store) => store.state)!;
   const mapUrl = useGameStore((store) => store.mapUrl);
+  const token = useGameStore((store) => store.token);
   const pending = useGameStore((store) => store.mapJobPending);
   const error = useGameStore((store) => store.errorIt);
   const retryMap = useGameStore((store) => store.retryMap);
@@ -517,7 +518,9 @@ function MapPanel() {
     Boolean(error) &&
     /mappa/i.test(error ?? "") &&
     !pending &&
-    Boolean(useGameStore.getState().token);
+    Boolean(token);
+  // Account: niente fallback SMI (sarebbe il comune sbagliato). Guest: PNG statico.
+  const imgSrc = mapUrl ?? (token ? null : "/maps/smi-basemap.png");
   return (
     <section className="panel">
       <header className="panel-head">
@@ -533,11 +536,16 @@ function MapPanel() {
         </span>
       </header>
       <div className="map-stage">
-        <img
-          src={mapUrl ?? "/maps/smi-basemap.png"}
-          alt={`Mappa di ${state.comuneName}`}
-        />
-        {!mapUrl && (
+        {imgSrc ? (
+          <img src={imgSrc} alt={`Mappa di ${state.comuneName}`} />
+        ) : (
+          <div
+            className="map-placeholder"
+            role="img"
+            aria-label={`Mappa di ${state.comuneName} in caricamento`}
+          />
+        )}
+        {!mapUrl && !token && (
           <svg viewBox="0 0 100 100" aria-label="Interventi completati">
             {state.overlay.activeSlots.map((slot) => {
               const [cx, cy] = slotPositions[slot];
