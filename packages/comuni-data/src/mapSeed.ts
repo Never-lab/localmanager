@@ -116,11 +116,32 @@ export function mapBdapToBudget(
 
   return {
     openingCash,
+    openingDebt: 0,
     monthlyBaseIncome,
     monthlyMaintenance,
     sourceYear,
     sourceUrls,
   };
+}
+
+/**
+ * Stock mutui/prestiti from Conto del Patrimonio (Passivo → DEBITI → DI FINANZIAMENTO).
+ * Missing rows → 0 (hydrate must not fail).
+ */
+export function mapBdapOpeningDebt(patrimonioRows: Record<string, string>[]): number {
+  let total = 0;
+  for (const row of patrimonioRows) {
+    const tipologia = field(row, ["Tipologia Voce"]).toLowerCase();
+    const l1 = field(row, ["Codice Voce I livello"]).toLowerCase();
+    const l2 = field(row, ["Codice Voce II livello"]).toLowerCase();
+    if (tipologia !== "passivo" || l1 !== "debiti") continue;
+    if (!l2.includes("di finanziamento")) continue;
+    const n = parseNumber(
+      field(row, ["Consistenza Finale Patrimonio", "Consistenza Finale"]),
+    );
+    if (n !== null && n > 0) total += n;
+  }
+  return Math.round(total);
 }
 
 function sumAllNumeric(rows: Record<string, string>[]): number | null {

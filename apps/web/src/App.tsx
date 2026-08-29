@@ -296,6 +296,7 @@ function SetupScreen() {
           meanAge: number;
           budget: {
             openingCash: number;
+            openingDebt?: number;
             monthlyBaseIncome: number;
             monthlyMaintenance: number;
             sourceYear: number;
@@ -467,6 +468,7 @@ function toPayload(seed: {
   meanAge: number;
   budget: {
     openingCash: number;
+    openingDebt?: number;
     monthlyBaseIncome: number;
     monthlyMaintenance: number;
     sourceYear: number;
@@ -483,6 +485,7 @@ function toPayload(seed: {
     population: seed.population,
     meanAge: seed.meanAge,
     openingCash: seed.budget.openingCash,
+    openingDebt: seed.budget.openingDebt ?? 0,
     monthlyBaseIncome: seed.budget.monthlyBaseIncome,
     monthlyMaintenance: seed.budget.monthlyMaintenance,
     sourceYear: seed.budget.sourceYear,
@@ -593,6 +596,9 @@ function GameScreen() {
           <div className="sticky-meta">
             <span>Mandato di {state.mayorName}</span>
             <p className="cash">{money.format(state.cash)}</p>
+            {state.debt > 0 && (
+              <span className="eyebrow">Debito {money.format(state.debt)}</span>
+            )}
             <span>
               Mese {state.month} / {state.mandateMonths}
             </span>
@@ -783,6 +789,12 @@ function GameScreen() {
             </div>
             <p className="cash">{money.format(state.cash)}</p>
             <span className="eyebrow">Disponibile</span>
+            {state.debt > 0 && (
+              <>
+                <p className="cash">{money.format(state.debt)}</p>
+                <span className="eyebrow">Debito residuo</span>
+              </>
+            )}
           </section>
           <section className="panel">
             <div className="panel-head">

@@ -12,6 +12,7 @@ function fixtureSeed(): ComuneSeedPayload {
     population: state.population,
     meanAge: state.meanAge,
     openingCash: state.cash,
+    openingDebt: state.debt,
     monthlyBaseIncome: state.comune.monthlyBaseIncome,
     monthlyMaintenance: state.comune.monthlyMaintenance,
     sourceYear: state.comune.sourceYear,

@@ -1,6 +1,8 @@
 import type { StaffRole } from "@localmanager/shared";
 
 export const MANDATE_MONTHS = 48 as const;
+/** Educational mortgage horizon for monthly debt service (20 years). */
+export const DEBT_HORIZON_MONTHS = 240;
 export const RIVAL_INTERVAL_MONTHS = 6;
 export const RIVAL_HEAT_GAIN = 8;
 export const PROVINCE_SUCCESS_CHANCE = 0.55;

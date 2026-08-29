@@ -13,6 +13,11 @@ export interface BdapDumpUrls {
   year: number;
 }
 
+export interface BdapPatrimonioDump {
+  patrimonioUrl: string;
+  year: number;
+}
+
 function httpsDump(url: string): string {
   return url.replace(/^http:\/\//i, "https://");
 }
@@ -131,4 +136,25 @@ export async function resolveBdapDumpUrls(
     speseUrl,
     year: Math.max(yearFromTitle(entrate.title), yearFromTitle(spese.title)),
   };
+}
+
+/** National Conto del Patrimonio dump (latest year). */
+export async function resolveBdapPatrimonioDumpUrl(
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<BdapPatrimonioDump | null> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const pkgs = await searchPackages(
+    "Gestione Patrimoniale Conto del Patrimonio Enti Locali",
+    fetchImpl,
+  );
+  const matched = pkgs
+    .filter((p) =>
+      p.title.includes("Gestione Patrimoniale Conto del Patrimonio Enti Locali"),
+    )
+    .sort((a, b) => yearFromTitle(b.title) - yearFromTitle(a.title));
+  const pkg = matched[0];
+  if (!pkg) return null;
+  const patrimonioUrl = dumpUrlFromPackage(pkg);
+  if (!patrimonioUrl) return null;
+  return { patrimonioUrl, year: yearFromTitle(pkg.title) };
 }

@@ -16,6 +16,7 @@ describe("hydrateComune geo", () => {
       meanAge: 43,
       budget: {
         openingCash: 1,
+        openingDebt: 0,
         monthlyBaseIncome: 1,
         monthlyMaintenance: 1,
         sourceYear: 2023,

@@ -20,7 +20,7 @@ Seed snapshot for LocalManager v0. Numbers are for educational simulation only.
 
 ## Budget & projects
 
-Opening cash, monthly income/maintenance, and project costs/effects are **simplified educational placeholders**, not derived from the comune's real bilancio or deliberations.
+Opening cash, monthly income/maintenance, and project costs/effects are **simplified educational placeholders**, not derived from the comune's real bilancio or deliberations. Hydrated runs may set `openingDebt` from BDAP Conto del Patrimonio (debiti di finanziamento).
 
 ## Map slots
 

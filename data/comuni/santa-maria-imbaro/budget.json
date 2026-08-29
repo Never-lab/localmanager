@@ -1,5 +1,6 @@
 {
   "openingCash": 850000,
+  "openingDebt": 0,
   "monthlyBaseIncome": 42000,
   "monthlyMaintenance": 18000,
   "disclaimer": "Educational simplified model — not a real bilancio"

@@ -118,6 +118,8 @@ export interface GameState {
   month: number; // 1..48
   mandateMonths: 48;
   cash: number;
+  /** Outstanding financing debt (€). */
+  debt: number;
   population: number;
   meanAge: number;
   peopleRep: number; // 0..100
@@ -148,6 +150,7 @@ export interface NewGameOptions {
     population: number;
     meanAge: number;
     openingCash: number;
+    openingDebt?: number;
     monthlyBaseIncome: number;
     monthlyMaintenance: number;
     sourceYear: number | null;

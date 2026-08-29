@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSeedFromRows,
   filterRowsByIstat,
+  mapBdapOpeningDebt,
   mapBdapToBudget,
   mapBdapToProjects,
   mapCupToProjects,
@@ -64,6 +65,7 @@ describe("mapBdapToBudget", () => {
     expect(budget).not.toBeNull();
     expect(budget!.monthlyBaseIncome).toBe(100_000);
     expect(budget!.monthlyMaintenance).toBe(80_000);
+    expect(budget!.openingDebt).toBe(0);
     expect(budget!.sourceYear).toBe(2023);
     expect(budget!.openingCash).toBeGreaterThan(0);
   });
@@ -91,6 +93,36 @@ describe("mapBdapToBudget", () => {
     expect(budget!.monthlyBaseIncome).toBe(100_000);
     expect(budget!.monthlyMaintenance).toBe(80_000);
     expect(budget!.sourceYear).toBe(2015);
+  });
+});
+
+describe("mapBdapOpeningDebt", () => {
+  it("sums Passivo DEBITI di finanziamento", () => {
+    const debt = mapBdapOpeningDebt([
+      {
+        "Tipologia Voce": "Passivo",
+        "Codice Voce I livello": "DEBITI",
+        "Codice Voce II livello": "DI FINANZIAMENTO",
+        "Consistenza Finale Patrimonio": "879292.48",
+      },
+      {
+        "Tipologia Voce": "Passivo",
+        "Codice Voce I livello": "DEBITI",
+        "Codice Voce II livello": "DI FUNZIONAMENTO",
+        "Consistenza Finale Patrimonio": "576465.04",
+      },
+      {
+        "Tipologia Voce": "Attivo",
+        "Codice Voce I livello": "IMMOBILIZZAZIONI",
+        "Codice Voce II livello": "MATERIALI",
+        "Consistenza Finale Patrimonio": "1000000.00",
+      },
+    ]);
+    expect(debt).toBe(879_292);
+  });
+
+  it("returns 0 when financing debt rows are missing", () => {
+    expect(mapBdapOpeningDebt([])).toBe(0);
   });
 });
 
