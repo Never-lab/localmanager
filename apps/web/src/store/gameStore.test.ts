@@ -4,8 +4,9 @@ import { useGameStore } from "./gameStore";
 
 describe("game store", () => {
   beforeEach(() => {
-    useGameStore.getState().reset();
     vi.restoreAllMocks();
+    localStorage.clear();
+    useGameStore.getState().reset();
   });
 
   it("starts a mandate for the named mayor", () => {
@@ -39,6 +40,57 @@ describe("game store", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("ignores a second close while the first close is saving", async () => {
+    let finishSave!: (response: Response) => void;
+    const savePending = new Promise<Response>((resolve) => {
+      finishSave = resolve;
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockReturnValue(savePending);
+    useGameStore.setState({
+      screen: "game",
+      state: createInitialGameState({ mayorName: "Ada Rossi" }),
+      token: "token",
+      runId: "run-1",
+    });
+
+    const firstClose = useGameStore.getState().closeMonth();
+    const secondClose = useGameStore.getState().closeMonth();
+
+    expect(useGameStore.getState().mapJobPending).toBe(true);
+    finishSave(new Response(null, { status: 200 }));
+    await Promise.all([firstClose, secondClose]);
+    expect(useGameStore.getState().state?.month).toBe(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(useGameStore.getState().mapJobPending).toBe(false);
+  });
+
+  it("resumes the cloud run remembered after a save", async () => {
+    const savedState = createInitialGameState({ mayorName: "Ada Rossi" });
+    savedState.month = 7;
+    localStorage.setItem("localmanager:lastRunId", "run-7");
+    useGameStore.setState({ screen: "menu", token: "token" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ runId: "run-7", state: savedState, updatedAt: "" }),
+        { status: 200 },
+      ),
+    );
+
+    await useGameStore.getState().resumeGame();
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/saves/run-7", {
+      headers: {
+        authorization: "Bearer token",
+        "content-type": "application/json",
+      },
+    });
+    expect(useGameStore.getState()).toMatchObject({
+      screen: "game",
+      runId: "run-7",
+      state: { month: 7 },
+    });
+  });
+
   it("requests and installs a fresh server map after a dirty month", async () => {
     const state = createInitialGameState({ mayorName: "Ada Rossi", seed: 1 });
     state.activeProjects = [
@@ -66,6 +118,7 @@ describe("game store", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
     expect(useGameStore.getState().mapUrl).toBe("blob:mappa");
+    expect(localStorage.getItem("localmanager:lastRunId")).toBe("run-1");
     expect(useGameStore.getState().state?.overlay).toMatchObject({
       dirty: false,
       mapVersion: 1,

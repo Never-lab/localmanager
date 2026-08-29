@@ -4,7 +4,7 @@ import type {
   ProjectTemplateId,
   StaffRole,
 } from "@localmanager/shared";
-import { useGameStore } from "./store/gameStore";
+import { LAST_RUN_ID_KEY, useGameStore } from "./store/gameStore";
 import "./styles.css";
 
 const money = new Intl.NumberFormat("it-IT", {
@@ -120,7 +120,10 @@ function AuthScreen() {
 function MenuScreen() {
   const token = useGameStore((store) => store.token);
   const goToSetup = useGameStore((store) => store.goToSetup);
+  const resumeGame = useGameStore((store) => store.resumeGame);
   const reset = useGameStore((store) => store.reset);
+  const error = useGameStore((store) => store.errorIt);
+  const savedRunId = token ? localStorage.getItem(LAST_RUN_ID_KEY) : null;
   return (
     <Frame>
       <section className="menu-card">
@@ -134,15 +137,19 @@ function MenuScreen() {
         </button>
         <button
           className="secondary"
-          disabled={!token}
+          disabled={!token || !savedRunId}
           title={
-            token
-              ? "Riprendi un salvataggio online"
-              : "Accedi per usare i salvataggi online."
+            !token
+              ? "Accedi per usare i salvataggi online."
+              : savedRunId
+                ? "Riprendi il salvataggio online."
+                : "Nessun salvataggio online disponibile su questo dispositivo."
           }
+          onClick={() => void resumeGame()}
         >
           Riprendi partita
         </button>
+        {error && <p className="error-note">{error}</p>}
         <button className="text-button" onClick={reset}>
           {token ? "Esci dall'account" : "Torna all'accesso"}
         </button>
@@ -230,17 +237,19 @@ function MapPanel() {
           src={mapUrl ?? "/maps/smi-basemap.png"}
           alt="Mappa di Santa Maria Imbaro"
         />
-        <svg viewBox="0 0 100 100" aria-label="Interventi completati">
-          {state.overlay.activeSlots.map((slot) => {
-            const [cx, cy] = slotPositions[slot];
-            return (
-              <g key={slot}>
-                <circle className="map-pulse" cx={cx} cy={cy} r="5.5" />
-                <circle className="map-dot" cx={cx} cy={cy} r="2.5" />
-              </g>
-            );
-          })}
-        </svg>
+        {!mapUrl && (
+          <svg viewBox="0 0 100 100" aria-label="Interventi completati">
+            {state.overlay.activeSlots.map((slot) => {
+              const [cx, cy] = slotPositions[slot];
+              return (
+                <g key={slot}>
+                  <circle className="map-pulse" cx={cx} cy={cy} r="5.5" />
+                  <circle className="map-dot" cx={cx} cy={cy} r="2.5" />
+                </g>
+              );
+            })}
+          </svg>
+        )}
         <div className="map-legend">
           <span />
           Intervento completato

@@ -41,9 +41,12 @@ interface GameStore {
   issuePressRelease: (tone: "people" | "political") => void;
   respondToRival: (choice: "ignore" | "counter") => void;
   closeMonth: () => Promise<void>;
+  resumeGame: () => Promise<void>;
   returnToMenu: () => void;
   reset: () => void;
 }
+
+export const LAST_RUN_ID_KEY = "localmanager:lastRunId";
 
 const initialState = {
   screen: "auth" as Screen,
@@ -63,6 +66,12 @@ function authorization(token: string): HeadersInit {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+}
+
+function revokeMapUrl(mapUrl: string | null) {
+  if (mapUrl?.startsWith("blob:") && typeof URL.revokeObjectURL === "function") {
+    URL.revokeObjectURL(mapUrl);
+  }
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -147,17 +156,18 @@ export const useGameStore = create<GameStore>((set, get) => {
     closeMonth: async () => {
       const current = get().state;
       if (!current || get().mapJobPending) return;
-      const next = advanceMonth(current);
-      set({
-        state: next,
-        screen: next.status === "playing" ? "game" : "gameover",
-        errorIt: null,
-      });
-
-      const { token, runId } = get();
-      if (!token || !runId) return;
-
+      set({ mapJobPending: true });
       try {
+        const next = advanceMonth(current);
+        set({
+          state: next,
+          screen: next.status === "playing" ? "game" : "gameover",
+          errorIt: null,
+        });
+
+        const { token, runId } = get();
+        if (!token || !runId) return;
+
         const saveResponse = await fetch(
           `/api/saves/${encodeURIComponent(runId)}`,
           {
@@ -167,9 +177,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           },
         );
         if (!saveResponse.ok) throw new Error("Salvataggio non riuscito.");
+        localStorage.setItem(LAST_RUN_ID_KEY, runId);
         if (!next.overlay.dirty) return;
 
-        set({ mapJobPending: true });
         const jobResponse = await fetch(
           `/api/runs/${encodeURIComponent(runId)}/map-jobs`,
           {
@@ -234,7 +244,39 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
-    returnToMenu: () =>
+    resumeGame: async () => {
+      const { token } = get();
+      const runId = localStorage.getItem(LAST_RUN_ID_KEY);
+      if (!token || !runId) return;
+      set({ errorIt: null });
+      try {
+        const response = await fetch(
+          `/api/saves/${encodeURIComponent(runId)}`,
+          { headers: authorization(token) },
+        );
+        if (!response.ok) throw new Error("Salvataggio non disponibile.");
+        const saved = (await response.json()) as {
+          runId: string;
+          state: GameState;
+        };
+        revokeMapUrl(get().mapUrl);
+        set({
+          screen: saved.state.status === "playing" ? "game" : "gameover",
+          state: saved.state,
+          runId: saved.runId,
+          mapUrl: null,
+          errorIt: null,
+        });
+      } catch (error) {
+        set({
+          errorIt:
+            error instanceof Error ? error.message : "Operazione non riuscita.",
+        });
+      }
+    },
+
+    returnToMenu: () => {
+      revokeMapUrl(get().mapUrl);
       set({
         screen: "menu",
         state: null,
@@ -242,7 +284,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         mapUrl: null,
         mapJobPending: false,
         errorIt: null,
-      }),
-    reset: () => set(initialState),
+      });
+    },
+    reset: () => {
+      revokeMapUrl(get().mapUrl);
+      set(initialState);
+    },
   };
 });
