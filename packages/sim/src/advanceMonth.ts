@@ -6,6 +6,7 @@ import type {
 } from "@localmanager/shared";
 import {
   CLAMP,
+  DEBT_HORIZON_MONTHS,
   MEAN_AGE_MONTHLY_DRIFT,
   POPULATION_NOISE_RANGE,
   PROVINCE_SUCCESS_CHANCE,
@@ -38,6 +39,7 @@ export function advanceMonth(state: GameState): GameState {
     state.comune.monthlyBaseIncome -
     state.comune.monthlyMaintenance -
     staffCosts;
+  let debt = state.debt;
   let population = state.population;
   let meanAge = state.meanAge;
   let peopleRep = state.peopleRep;
@@ -98,6 +100,20 @@ export function advanceMonth(state: GameState): GameState {
     provinceRequest = null;
   }
 
+  let debtService = 0;
+  if (debt > 0) {
+    debtService = Math.min(
+      debt,
+      Math.max(1, Math.ceil(debt / DEBT_HORIZON_MONTHS)),
+    );
+    cash -= debtService;
+    debt -= debtService;
+    log.push({
+      month,
+      textIt: `Rata mutuo: €${debtService} (debito residuo €${debt}).`,
+    });
+  }
+
   const populationRoll = nextRandom(seed);
   seed = populationRoll.seed;
   const populationNoise =
@@ -130,6 +146,7 @@ export function advanceMonth(state: GameState): GameState {
     ...state,
     month,
     cash,
+    debt,
     population,
     meanAge,
     peopleRep,

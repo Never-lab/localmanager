@@ -31,6 +31,7 @@ export function createInitialGameState(options: NewGameOptions): GameState {
     month: 1,
     mandateMonths: MANDATE_MONTHS,
     cash: seeded?.openingCash ?? fixture.budget.openingCash,
+    debt: seeded?.openingDebt ?? fixture.budget.openingDebt ?? 0,
     population: seeded?.population ?? fixture.demographics.population,
     meanAge: seeded?.meanAge ?? fixture.demographics.meanAge,
     peopleRep: INITIAL_PEOPLE_REP,

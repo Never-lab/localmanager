@@ -28,6 +28,7 @@ export interface ComuneSeedPayload {
   population: number;
   meanAge: number;
   openingCash: number;
+  openingDebt: number;
   monthlyBaseIncome: number;
   monthlyMaintenance: number;
   sourceYear: number | null;

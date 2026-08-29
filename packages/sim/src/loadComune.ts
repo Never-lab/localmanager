@@ -32,6 +32,7 @@ interface Demographics {
 
 interface Budget {
   openingCash: number;
+  openingDebt?: number;
   monthlyBaseIncome: number;
   monthlyMaintenance: number;
 }

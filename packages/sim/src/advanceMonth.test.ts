@@ -2,6 +2,7 @@ import type { GameState } from "@localmanager/shared";
 import { describe, expect, it } from "vitest";
 import { advanceMonth, canCloseMonth } from "./advanceMonth.js";
 import {
+  DEBT_HORIZON_MONTHS,
   MEAN_AGE_MONTHLY_DRIFT,
   RIVAL_HEAT_GAIN,
   STAFF_COSTS,
@@ -31,6 +32,28 @@ describe("advanceMonth", () => {
         budget.monthlyMaintenance -
         STAFF_COSTS.secretary,
     );
+  });
+
+  it("pays monthly financing debt service and reduces stock", () => {
+    let state = withEmptyQueue(
+      createInitialGameState({ mayorName: "Test", seed: 1 }),
+    );
+    const openingDebt = 240_000;
+    const rata = Math.ceil(openingDebt / DEBT_HORIZON_MONTHS);
+    const before = state.cash;
+    state = { ...state, debt: openingDebt };
+
+    state = advanceMonth(state);
+
+    expect(state.debt).toBe(openingDebt - rata);
+    expect(state.cash).toBe(
+      before +
+        loadComune().budget.monthlyBaseIncome -
+        loadComune().budget.monthlyMaintenance -
+        STAFF_COSTS.secretary -
+        rata,
+    );
+    expect(state.log.some((e) => e.textIt.includes("Rata mutuo"))).toBe(true);
   });
 
   it("sets overlay.dirty when a project completes", () => {

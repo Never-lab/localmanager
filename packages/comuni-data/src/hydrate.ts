@@ -1,11 +1,12 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { MapGeo } from "@localmanager/shared";
-import { resolveBdapDumpUrls } from "./bdapUrls.js";
+import { resolveBdapDumpUrls, resolveBdapPatrimonioDumpUrl } from "./bdapUrls.js";
 import { findComune, loadCatalog } from "./catalog.js";
 import { parseCsv, rowsToObjects } from "./csv.js";
 import {
   filterRowsByIstat,
+  mapBdapOpeningDebt,
   mapBdapToBudget,
   mapBdapToProjects,
   mapCupToProjects,
@@ -20,6 +21,7 @@ export interface HydrateOptions {
   fixtureDir?: string;
   entrateUrl?: string;
   speseUrl?: string;
+  patrimonioUrl?: string;
   cupUrl?: string;
   fetchImpl?: typeof fetch;
   nominatimUrl?: string;
@@ -184,8 +186,15 @@ export async function hydrateComune(
 
     const entratePath = join(options.bulkDir, `bdap-entrate-${slug}.csv`);
     const spesePath = join(options.bulkDir, `bdap-spese-${slug}.csv`);
+    const patrimonioPath = join(options.bulkDir, "bdap-patrimonio.csv");
     const cupPath = join(options.bulkDir, "opencup-progetti.csv");
     const cupUrl = options.cupUrl ?? DEFAULT_CUP;
+
+    let patrimonioUrl = options.patrimonioUrl;
+    if (!patrimonioUrl) {
+      const resolvedPat = await resolveBdapPatrimonioDumpUrl({ fetchImpl });
+      patrimonioUrl = resolvedPat?.patrimonioUrl;
+    }
 
     try {
       await downloadIfMissing(entrateUrl, entratePath, fetchImpl);
@@ -203,11 +212,25 @@ export async function hydrateComune(
       };
     }
 
+    // ponytail: debt is optional — missing/failed patrimonio dump → openingDebt 0
+    if (patrimonioUrl) {
+      try {
+        await downloadIfMissing(patrimonioUrl, patrimonioPath, fetchImpl);
+      } catch {
+        patrimonioUrl = undefined;
+      }
+    }
+
     notify("filtering");
     const entrateAll = await loadCsvObjects(entratePath);
     const speseAll = await loadCsvObjects(spesePath);
     const entrate = filterRowsByIstat(entrateAll, id);
     const spese = filterRowsByIstat(speseAll, id);
+
+    let patrimonio: Record<string, string>[] = [];
+    if (await exists(patrimonioPath)) {
+      patrimonio = filterRowsByIstat(await loadCsvObjects(patrimonioPath), id);
+    }
 
     let cup: Record<string, string>[] = [];
     if (await exists(cupPath)) {
@@ -222,6 +245,10 @@ export async function hydrateComune(
         errorIt:
           "Bilancio BDAP non disponibile o incompleto per questo comune. Scegline un altro o riprova più tardi.",
       };
+    }
+    budget.openingDebt = mapBdapOpeningDebt(patrimonio);
+    if (patrimonioUrl) {
+      budget.sourceUrls = [...budget.sourceUrls, patrimonioUrl];
     }
     const cupProjects = mapCupToProjects(cup, 4);
     const projects =
@@ -256,7 +283,8 @@ export async function hydrateComune(
     }
 
     const sources = [entrateUrl, speseUrl, catalog.source];
-    if (cupUrl) sources.splice(2, 0, cupUrl);
+    if (patrimonioUrl) sources.splice(2, 0, patrimonioUrl);
+    if (cupUrl) sources.splice(patrimonioUrl ? 3 : 2, 0, cupUrl);
 
     const seed = buildSeed(
       meta,
@@ -337,6 +365,7 @@ export function buildSeedFromRows(
   cup: Record<string, string>[],
   sourceUrls: string[],
   map: MapGeo,
+  patrimonio: Record<string, string>[] = [],
 ): HydrateResult {
   const budget = mapBdapToBudget(entrate, spese, sourceUrls);
   if (!budget) {
@@ -345,6 +374,7 @@ export function buildSeedFromRows(
       errorIt: "Bilancio BDAP non disponibile o incompleto per questo comune.",
     };
   }
+  budget.openingDebt = mapBdapOpeningDebt(patrimonio);
   const cupProjects = mapCupToProjects(cup, 4);
   const projects =
     cupProjects.length > 0 ? cupProjects : mapBdapToProjects(spese, 4);
@@ -354,7 +384,7 @@ export function buildSeedFromRows(
       errorIt: "Nessun progetto OpenCUP utilizzabile per questo comune.",
     };
   }
-  const population = inferPopulation(entrate, spese, cup);
+  const population = inferPopulation(entrate, spese, cup, patrimonio);
   if (!population) {
     return {
       status: "failed",

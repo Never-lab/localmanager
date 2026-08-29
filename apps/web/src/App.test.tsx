@@ -20,6 +20,7 @@ function fixtureSeed(): ComuneSeedPayload {
     population: state.population,
     meanAge: state.meanAge,
     openingCash: state.cash,
+    openingDebt: state.debt,
     monthlyBaseIncome: state.comune.monthlyBaseIncome,
     monthlyMaintenance: state.comune.monthlyMaintenance,
     sourceYear: state.comune.sourceYear,
@@ -72,6 +73,7 @@ describe("desk interface", () => {
               meanAge: seed.meanAge,
               budget: {
                 openingCash: seed.openingCash,
+                openingDebt: seed.openingDebt,
                 monthlyBaseIncome: seed.monthlyBaseIncome,
                 monthlyMaintenance: seed.monthlyMaintenance,
                 sourceYear: seed.sourceYear ?? 2023,

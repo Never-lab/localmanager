@@ -17,6 +17,8 @@ export interface CatalogFile {
 
 export interface ComuneBudgetSeed {
   openingCash: number;
+  /** Stock mutui/prestiti (Passivo DEBITI di finanziamento BDAP). */
+  openingDebt: number;
   monthlyBaseIncome: number;
   monthlyMaintenance: number;
   sourceYear: number;

@@ -7,6 +7,7 @@
   "meanAge": 43.1,
   "budget": {
     "openingCash": 850000,
+    "openingDebt": 0,
     "monthlyBaseIncome": 42000,
     "monthlyMaintenance": 18000,
     "sourceYear": 2023,
