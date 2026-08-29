@@ -10,6 +10,9 @@ import {
   decodeMapContent,
   enqueueMapJob,
   getMapState,
+  MapJobNotFoundError,
+  MapJobOwnershipError,
+  MapJobStateConflictError,
 } from "./mapJobs.js";
 import { getSave, putSave } from "./saves.js";
 
@@ -77,9 +80,15 @@ export function createApiServer(pool: Database, config: ApiConfig) {
       if (method === "GET" && path === "/api/health") {
         await pool.query("SELECT 1");
         const maps = await pool.query(
-          `SELECT 1 FROM map_jobs
-           WHERE status IN ('running', 'ready')
-             AND created_at > NOW() - INTERVAL '24 hours'
+          `SELECT 1
+           WHERE EXISTS (
+             SELECT 1 FROM map_artifacts
+             WHERE created_at > NOW() - INTERVAL '24 hours'
+           ) OR EXISTS (
+             SELECT 1 FROM map_jobs
+             WHERE status = 'running'
+               AND created_at > NOW() - INTERVAL '24 hours'
+           )
            LIMIT 1`,
         );
         return sendJson(response, 200, {
@@ -148,6 +157,7 @@ export function createApiServer(pool: Database, config: ApiConfig) {
         const job = await enqueueMapJob(
           pool,
           decodeURIComponent(enqueueMatch[1]),
+          userId,
           await readJson(request),
         );
         return job
@@ -225,6 +235,15 @@ export function createApiServer(pool: Database, config: ApiConfig) {
           ? String(error.code)
           : null;
       const message = error instanceof Error ? error.message : "Internal error";
+      if (error instanceof MapJobNotFoundError) {
+        return sendJson(response, 404, { error: message });
+      }
+      if (error instanceof MapJobOwnershipError) {
+        return sendJson(response, 403, { error: message });
+      }
+      if (error instanceof MapJobStateConflictError) {
+        return sendJson(response, 409, { error: message });
+      }
       if (pgCode === "23505") {
         return sendJson(response, 409, { error: "Resource already exists" });
       }

@@ -9,6 +9,10 @@ interface MapJobInput {
   basemapRevision: string;
 }
 
+export class MapJobNotFoundError extends Error {}
+export class MapJobStateConflictError extends Error {}
+export class MapJobOwnershipError extends Error {}
+
 export function extractOverlaySlots(body: unknown): string[] {
   if (!body || typeof body !== "object") {
     throw new Error("overlaySlots must be an array of strings");
@@ -52,8 +56,17 @@ function toJob(row: Record<string, unknown>) {
 export async function enqueueMapJob(
   pool: Database,
   runId: string,
+  userId: string,
   body: unknown,
 ): Promise<ReturnType<typeof toJob> | null> {
+  const ownership = await pool.query(
+    "SELECT 1 FROM saves WHERE run_id = $1 AND user_id = $2",
+    [runId, userId],
+  );
+  if (ownership.rowCount !== 1) {
+    throw new MapJobOwnershipError("Run belongs to another user");
+  }
+
   const source = body as { basemapRevision?: unknown };
   const input: MapJobInput = {
     comuneId: "069084",
@@ -99,14 +112,22 @@ export async function completeMapJob(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const jobResult = await client.query<{ run_id: string }>(
-      "SELECT run_id FROM map_jobs WHERE id = $1 FOR UPDATE",
+    const jobResult = await client.query<{
+      run_id: string;
+      status: string;
+      map_version: number | null;
+    }>(
+      "SELECT run_id, status, map_version FROM map_jobs WHERE id = $1 FOR UPDATE",
       [jobId],
     );
     const job = jobResult.rows[0];
     if (!job) {
-      await client.query("ROLLBACK");
-      return null;
+      throw new MapJobNotFoundError("Map job not found");
+    }
+    if (job.status !== "running") {
+      throw new MapJobStateConflictError(
+        `Map job cannot be completed from status '${job.status}'`,
+      );
     }
 
     if (error) {
@@ -119,6 +140,10 @@ export async function completeMapJob(
     }
     if (!content?.length) throw new Error("PNG content is required");
 
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [job.run_id],
+    );
     const versionResult = await client.query<{ next_version: number }>(
       `SELECT COALESCE(MAX(map_version), 0) + 1 AS next_version
        FROM map_artifacts WHERE run_id = $1`,
@@ -140,6 +165,19 @@ export async function completeMapJob(
     return mapVersion;
   } catch (error) {
     await client.query("ROLLBACK");
+    const pgCode =
+      error && typeof error === "object" && "code" in error
+        ? String(error.code)
+        : null;
+    if (pgCode === "23505") {
+      await client.query(
+        `UPDATE map_jobs
+         SET status = 'failed', error = $2
+         WHERE id = $1 AND status = 'running'`,
+        [jobId, "Map version conflict"],
+      );
+      throw new MapJobStateConflictError("Map version conflict");
+    }
     throw error;
   } finally {
     client.release();
