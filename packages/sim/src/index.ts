@@ -7,4 +7,5 @@ export * from "./events.js";
 export * from "./firstWin.js";
 export * from "./forecastMonthCash.js";
 export * from "./loadComune.js";
+export * from "./objectives.js";
 export * from "./rng.js";

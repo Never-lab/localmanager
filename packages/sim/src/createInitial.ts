@@ -49,6 +49,7 @@ export function createInitialGameState(options: NewGameOptions): GameState {
       heat: INITIAL_RIVAL_HEAT,
       lastMoveMonth: null,
     },
+    pressUsedThisMonth: false,
     overlay: {
       activeSlots: [],
       dirty: false,

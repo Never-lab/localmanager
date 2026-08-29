@@ -130,6 +130,8 @@ export interface GameState {
   provinceRequest: ProvinceFundingRequest | null;
   pendingEvents: PendingEvent[];
   rival: RivalState;
+  /** True after issuing a press release; cleared on month close. */
+  pressUsedThisMonth: boolean;
   overlay: MapOverlay;
   log: LogEntry[];
   status: "playing" | "won" | "lost";

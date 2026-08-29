@@ -133,6 +133,7 @@ describe("desk actions", () => {
       ok: true,
       state: {
         ...state,
+        pressUsedThisMonth: true,
         peopleRep: state.peopleRep + 3,
         politicalRep: state.politicalRep - 2,
       },
@@ -148,6 +149,7 @@ describe("desk actions", () => {
       ok: true,
       state: {
         ...state,
+        pressUsedThisMonth: true,
         peopleRep: state.peopleRep - 2,
         politicalRep: state.politicalRep + 3,
       },
