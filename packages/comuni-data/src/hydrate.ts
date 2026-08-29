@@ -1,11 +1,13 @@
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { MapGeo } from "@localmanager/shared";
+import { resolveBdapDumpUrls } from "./bdapUrls.js";
 import { findComune, loadCatalog } from "./catalog.js";
 import { parseCsv, rowsToObjects } from "./csv.js";
 import {
   filterRowsByIstat,
   mapBdapToBudget,
+  mapBdapToProjects,
   mapCupToProjects,
 } from "./mapSeed.js";
 import { resolveComuneGeo } from "./nominatim.js";
@@ -25,15 +27,8 @@ export interface HydrateOptions {
   onStatus?: (status: HydrateResult["status"]) => void;
 }
 
-const DEFAULT_ENTRATE =
-  process.env.COMUNI_BDAP_ENTRATE_URL ??
-  "https://bdap-opendata.rgs.mef.gov.it/download/entrate-enti-locali.csv";
-const DEFAULT_SPESE =
-  process.env.COMUNI_BDAP_SPESE_URL ??
-  "https://bdap-opendata.rgs.mef.gov.it/download/spese-enti-locali.csv";
-const DEFAULT_CUP =
-  process.env.COMUNI_CUP_URL ??
-  "https://www.opencup.gov.it/portale/documents/d/guest/progetti_open.csv";
+/** Optional; OpenCUP national dumps are hundreds of MB — prefer bulk file or BDAP capitale. */
+const DEFAULT_CUP = process.env.COMUNI_CUP_URL;
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -64,7 +59,9 @@ export async function downloadIfMissing(
 }
 
 async function loadCsvObjects(path: string): Promise<Record<string, string>[]> {
-  const text = await readFile(path, "utf8");
+  const buf = await readFile(path);
+  // BDAP dumps are often latin-1; UTF-8 fixtures stay valid as latin-1 round-trip for ASCII headers
+  const text = buf.toString("latin1");
   const sep = text.includes(";") ? ";" : ",";
   return rowsToObjects(parseCsv(text, sep));
 }
@@ -105,6 +102,15 @@ async function ensureSeedMap(
     return { status: "failed", errorIt: geo.errorIt };
   }
   return { status: "ready", seed: { ...seed, map: geo } };
+}
+
+function regionSlug(region: string): string {
+  return region
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export async function hydrateComune(
@@ -157,18 +163,36 @@ export async function hydrateComune(
 
     notify("downloading");
     await mkdir(options.bulkDir, { recursive: true });
-    const entratePath = join(options.bulkDir, "bdap-entrate.csv");
-    const spesePath = join(options.bulkDir, "bdap-spese.csv");
-    const cupPath = join(options.bulkDir, "opencup-progetti.csv");
 
-    const entrateUrl = options.entrateUrl ?? DEFAULT_ENTRATE;
-    const speseUrl = options.speseUrl ?? DEFAULT_SPESE;
+    const slug = regionSlug(meta.region ?? "italia");
+    let entrateUrl = options.entrateUrl;
+    let speseUrl = options.speseUrl;
+    if (!entrateUrl || !speseUrl) {
+      const resolved = await resolveBdapDumpUrls(meta.region ?? "", {
+        fetchImpl,
+      });
+      if (!resolved) {
+        return {
+          status: "failed",
+          errorIt:
+            "Dataset BDAP non trovato per questa regione. Riprova o scegli un altro comune.",
+        };
+      }
+      entrateUrl = entrateUrl ?? resolved.entrateUrl;
+      speseUrl = speseUrl ?? resolved.speseUrl;
+    }
+
+    const entratePath = join(options.bulkDir, `bdap-entrate-${slug}.csv`);
+    const spesePath = join(options.bulkDir, `bdap-spese-${slug}.csv`);
+    const cupPath = join(options.bulkDir, "opencup-progetti.csv");
     const cupUrl = options.cupUrl ?? DEFAULT_CUP;
 
     try {
       await downloadIfMissing(entrateUrl, entratePath, fetchImpl);
       await downloadIfMissing(speseUrl, spesePath, fetchImpl);
-      await downloadIfMissing(cupUrl, cupPath, fetchImpl);
+      if (cupUrl) {
+        await downloadIfMissing(cupUrl, cupPath, fetchImpl);
+      }
     } catch (error) {
       return {
         status: "failed",
@@ -182,10 +206,13 @@ export async function hydrateComune(
     notify("filtering");
     const entrateAll = await loadCsvObjects(entratePath);
     const speseAll = await loadCsvObjects(spesePath);
-    const cupAll = await loadCsvObjects(cupPath);
     const entrate = filterRowsByIstat(entrateAll, id);
     const spese = filterRowsByIstat(speseAll, id);
-    const cup = filterRowsByIstat(cupAll, id);
+
+    let cup: Record<string, string>[] = [];
+    if (await exists(cupPath)) {
+      cup = filterRowsByIstat(await loadCsvObjects(cupPath), id);
+    }
 
     notify("mapping");
     const budget = mapBdapToBudget(entrate, spese, [entrateUrl, speseUrl]);
@@ -196,12 +223,14 @@ export async function hydrateComune(
           "Bilancio BDAP non disponibile o incompleto per questo comune. Scegline un altro o riprova più tardi.",
       };
     }
-    const projects = mapCupToProjects(cup, 4);
+    const cupProjects = mapCupToProjects(cup, 4);
+    const projects =
+      cupProjects.length > 0 ? cupProjects : mapBdapToProjects(spese, 4);
     if (projects.length === 0) {
       return {
         status: "failed",
         errorIt:
-          "Nessun progetto OpenCUP utilizzabile per questo comune. Scegline un altro o riprova più tardi.",
+          "Nessun progetto utilizzabile (OpenCUP o spese in conto capitale BDAP) per questo comune. Scegline un altro o riprova più tardi.",
       };
     }
 
@@ -226,12 +255,15 @@ export async function hydrateComune(
       return { status: "failed", errorIt: geo.errorIt };
     }
 
+    const sources = [entrateUrl, speseUrl, catalog.source];
+    if (cupUrl) sources.splice(2, 0, cupUrl);
+
     const seed = buildSeed(
       meta,
       budget,
       projects,
       population,
-      [entrateUrl, speseUrl, cupUrl, catalog.source],
+      sources,
       geo,
     );
 
@@ -262,8 +294,12 @@ function inferPopulation(
     for (const row of rows) {
       for (const [key, value] of Object.entries(row)) {
         if (!/popol/i.test(key)) continue;
+        const parsed = parseFloat(value.replace(",", "."));
+        if (Number.isFinite(parsed) && parsed > 0 && parsed < 10_000_000) {
+          return Math.round(parsed);
+        }
         const n = Number(value.replace(/\D/g, ""));
-        if (Number.isFinite(n) && n > 0) return n;
+        if (Number.isFinite(n) && n > 0 && n < 10_000_000) return n;
       }
     }
   }
@@ -309,7 +345,9 @@ export function buildSeedFromRows(
       errorIt: "Bilancio BDAP non disponibile o incompleto per questo comune.",
     };
   }
-  const projects = mapCupToProjects(cup, 4);
+  const cupProjects = mapCupToProjects(cup, 4);
+  const projects =
+    cupProjects.length > 0 ? cupProjects : mapBdapToProjects(spese, 4);
   if (!projects.length) {
     return {
       status: "failed",

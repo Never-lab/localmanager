@@ -430,7 +430,7 @@ function SetupScreen() {
             title={
               !selected
                 ? "Seleziona un comune prima di caricare i dati."
-                : "Scarica bilancio BDAP e progetti OpenCUP per questo comune."
+                : "Scarica bilancio BDAP (e progetti OpenCUP se configurato) per questo comune."
             }
             onClick={() => void hydrate()}
           >

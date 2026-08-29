@@ -17,7 +17,8 @@ const hydrateOptions = () => ({
   cacheDir:
     process.env.COMUNI_CACHE_DIR ?? join(repoRoot, "data/comuni/cache"),
   bulkDir: process.env.COMUNI_BULK_DIR ?? join(repoRoot, "data/comuni/bulk"),
-  fixtureDir: process.env.COMUNI_FIXTURE_DIR,
+  fixtureDir:
+    process.env.COMUNI_FIXTURE_DIR ?? join(repoRoot, "data/comuni/fixtures"),
 });
 
 /** One in-flight hydrate per istat id (shared download). */

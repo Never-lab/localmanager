@@ -57,7 +57,18 @@ export function rowsToObjects(rows: string[][]): Record<string, string>[] {
 
 export function parseNumber(raw: string | undefined): number | null {
   if (!raw) return null;
-  const normalized = raw.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  const n = Number(normalized);
+  const s = raw.replace(/\s/g, "");
+  if (!s) return null;
+  // Italian: 1.200.000,50 or 1.200.000
+  if (s.includes(",")) {
+    const n = Number(s.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const n = Number(s.replace(/\./g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+  // BDAP dumps use plain / US decimals (65168.41)
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
