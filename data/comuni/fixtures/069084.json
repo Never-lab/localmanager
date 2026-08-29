@@ -45,5 +45,16 @@
     }
   ],
   "fetchedAt": "2026-08-29T00:00:00.000Z",
-  "sources": ["fixture://opendata-sample"]
+  "sources": ["fixture://opendata-sample"],
+  "map": {
+    "osmQuery": "Santa Maria Imbaro, Abruzzo, Italy",
+    "center": { "lat": 42.2167, "lon": 14.45 },
+    "radiusM": 1200,
+    "basemapRevision": "2026-08-29",
+    "mapSlots": [
+      { "id": "centro", "labelIt": "Centro", "lat": 42.2167, "lon": 14.45, "radiusM": 120 },
+      { "id": "zona_nord", "labelIt": "Zona nord", "lat": 42.2207, "lon": 14.45, "radiusM": 100 },
+      { "id": "viabilita_est", "labelIt": "Viabilità est", "lat": 42.2167, "lon": 14.455, "radiusM": 140 }
+    ]
+  }
 }

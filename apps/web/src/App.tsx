@@ -302,9 +302,15 @@ function SetupScreen() {
           };
           projects: ComuneSeedPayload["projects"];
           sources: string[];
+          map: ComuneSeedPayload["map"];
         };
       };
       if (started.status === "ready" && started.seed) {
+        if (!started.seed.map) {
+          throw new Error(
+            "Geolocalizzazione non disponibile. Riprova o scegli un altro comune.",
+          );
+        }
         setSeed(toPayload(started.seed));
         setHydrateStatus("ready");
         return;
@@ -322,6 +328,11 @@ function SetupScreen() {
         };
         setHydrateStatus(job.status);
         if (job.status === "ready" && job.seed) {
+          if (!job.seed.map) {
+            throw new Error(
+              "Geolocalizzazione non disponibile. Riprova o scegli un altro comune.",
+            );
+          }
           setSeed(toPayload(job.seed));
           return;
         }
@@ -462,6 +473,7 @@ function toPayload(seed: {
   };
   projects: ComuneSeedPayload["projects"];
   sources: string[];
+  map: ComuneSeedPayload["map"];
 }): ComuneSeedPayload {
   return {
     comuneId: seed.comuneId,
@@ -476,6 +488,7 @@ function toPayload(seed: {
     sourceYear: seed.budget.sourceYear,
     sources: seed.sources,
     projects: seed.projects,
+    map: seed.map,
   };
 }
 
@@ -495,22 +508,31 @@ function MapPanel() {
   const state = useGameStore((store) => store.state)!;
   const mapUrl = useGameStore((store) => store.mapUrl);
   const pending = useGameStore((store) => store.mapJobPending);
+  const error = useGameStore((store) => store.errorIt);
+  const retryMap = useGameStore((store) => store.retryMap);
+  const showRetry =
+    Boolean(error) &&
+    /mappa/i.test(error ?? "") &&
+    !pending &&
+    Boolean(useGameStore.getState().token);
   return (
     <section className="panel">
       <header className="panel-head">
         <PanelTitle icon="map">Mappa degli interventi</PanelTitle>
         <span className={`map-status ${pending ? "pending" : ""}`}>
-          {pending
-            ? "Aggiornamento in corso"
-            : state.overlay.dirty
-              ? "Aggiornamento mappa disponibile online"
-              : `Mappa v${state.overlay.mapVersion}`}
+          {pending && !mapUrl
+            ? "Generazione mappa del comune…"
+            : pending
+              ? "Aggiornamento in corso"
+              : state.overlay.dirty
+                ? "Aggiornamento mappa disponibile online"
+                : `Mappa v${state.overlay.mapVersion}`}
         </span>
       </header>
       <div className="map-stage">
         <img
           src={mapUrl ?? "/maps/smi-basemap.png"}
-          alt="Mappa di Santa Maria Imbaro"
+          alt={`Mappa di ${state.comuneName}`}
         />
         {!mapUrl && (
           <svg viewBox="0 0 100 100" aria-label="Interventi completati">
@@ -529,6 +551,11 @@ function MapPanel() {
           <span />
           Intervento completato
         </div>
+        {showRetry && (
+          <button type="button" className="ghost" onClick={() => void retryMap()}>
+            Riprova mappa
+          </button>
+        )}
       </div>
     </section>
   );

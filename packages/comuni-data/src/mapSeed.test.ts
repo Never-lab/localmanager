@@ -80,6 +80,13 @@ describe("buildSeedFromRows", () => {
       [{ "Codice Comune": "069084", Impegni: "800" }],
       [],
       ["https://example.test"],
+      {
+        osmQuery: "Santa Maria Imbaro, Abruzzo, Italy",
+        center: { lat: 42.2167, lon: 14.45 },
+        radiusM: 1200,
+        basemapRevision: "2026-08-29",
+        mapSlots: [],
+      },
     );
     expect(result.status).toBe("failed");
   });

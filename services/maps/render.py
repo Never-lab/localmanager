@@ -1,8 +1,9 @@
-"""Render LocalManager map images."""
+"""Render LocalManager map images (basemap + overlay compositing)."""
 
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -16,21 +17,92 @@ FIXTURE_PATH = ROOT / "fixtures" / "basemap_stub.png"
 COLORS = ("#e63946", "#457b9d", "#f4a261", "#2a9d8f", "#9b5de5")
 
 
-def _position(slot: dict[str, Any], index: int) -> tuple[float, float]:
-    return (
-        float(slot.get("x", 0.2 + (index % 4) * 0.2)),
-        float(slot.get("y", 0.3 + (index // 4) * 0.2)),
+def latlon_to_pixel(
+    lat: float,
+    lon: float,
+    center: dict[str, float],
+    radius_m: float,
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    """Converte lat/lon in pixel nel frame centrato (nord in alto)."""
+    m_per_deg_lat = 111_320.0
+    m_per_deg_lon = 111_320.0 * math.cos(math.radians(center["lat"]))
+    dx = (lon - center["lon"]) * m_per_deg_lon
+    dy = (lat - center["lat"]) * m_per_deg_lat
+    x = (dx / (2 * radius_m) + 0.5) * width
+    y = (0.5 - dy / (2 * radius_m)) * height
+    return int(x), int(y)
+
+
+def render_basemap(
+    osm_query: str,
+    center: dict[str, float],
+    radius_m: float,
+    out_path: str,
+    fixture_mode: bool = False,
+) -> None:
+    """Genera il basemap HQ (o stub fixture) con inquadramento fisso."""
+    output = Path(out_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    use_fixture = fixture_mode or os.getenv("LOCALMANAGER_MAPS_FIXTURE", "0") == "1"
+
+    if use_fixture:
+        with Image.open(FIXTURE_PATH) as source:
+            source.convert("RGB").copy().save(output, format="PNG")
+        return
+
+    import matplotlib.pyplot as plt
+    import prettymaps
+
+    # Inquadramento esplicito: stesso radius/center a ogni regen.
+    prettymaps.plot(
+        (center["lat"], center["lon"]),
+        radius=radius_m,
+        credit=False,
     )
+    fig = plt.gcf()
+    fig.set_size_inches(10, 10)
+    plt.savefig(output, format="png", dpi=180, bbox_inches="tight", pad_inches=0)
+    plt.close()
+    # osm_query resta nel job per audit / fallback futuri
+    _ = osm_query
 
 
-def _draw_fixture_slots(image: Image.Image, slots: list[dict[str, Any]]) -> None:
+def composite_overlay(
+    basemap_path: str,
+    map_slots: list[dict[str, Any]],
+    active_ids: list[str],
+    center: dict[str, float],
+    radius_m: float,
+    out_path: str,
+) -> None:
+    """Disegna i marker attivi sul basemap senza rifare lo zoom OSM."""
+    output = Path(out_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(basemap_path) as source:
+        image = source.convert("RGB").copy()
     draw = ImageDraw.Draw(image)
-    radius = max(5, min(image.size) // 30)
-    for index, slot in enumerate(slots):
-        x, y = _position(slot, index)
-        cx, cy = int(x * image.width), int(y * image.height)
+    active = set(active_ids)
+    slots_by_id = {str(slot.get("id")): slot for slot in map_slots}
+    radius_px = max(5, min(image.size) // 30)
+    for index, slot_id in enumerate(active_ids):
+        slot = slots_by_id.get(slot_id)
+        if not slot:
+            continue
+        if slot_id not in active:
+            continue
+        lat = float(slot["lat"])
+        lon = float(slot["lon"])
+        cx, cy = latlon_to_pixel(
+            lat, lon, center, radius_m, image.width, image.height
+        )
         color = str(slot.get("color", COLORS[index % len(COLORS)]))
-        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=color)
+        draw.ellipse(
+            (cx - radius_px, cy - radius_px, cx + radius_px, cy + radius_px),
+            fill=color,
+        )
+    image.save(output, format="PNG")
 
 
 def render_map(
@@ -38,36 +110,35 @@ def render_map(
     slots: list[dict[str, Any]],
     out_path: str,
     fixture_mode: bool = False,
+    center: dict[str, float] | None = None,
+    radius_m: float = 1200,
+    active_ids: list[str] | None = None,
 ) -> None:
-    """Render a basemap and colored slot markers to a PNG."""
-    output = Path(out_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    use_fixture = fixture_mode or os.getenv("LOCALMANAGER_MAPS_FIXTURE", "0") == "1"
-
-    if use_fixture:
-        with Image.open(FIXTURE_PATH) as source:
-            image = source.convert("RGB").copy()
-        _draw_fixture_slots(image, slots)
-        image.save(output, format="PNG")
-        return
-
-    import matplotlib.pyplot as plt
-    import prettymaps
-
-    prettymaps.plot(osm_query)
-    axes = plt.gca()
-    for index, slot in enumerate(slots):
-        x, y = _position(slot, index)
-        axes.scatter(
-            [x],
-            [y],
-            color=str(slot.get("color", COLORS[index % len(COLORS)])),
-            s=80,
-            transform=axes.transAxes,
-            zorder=100,
+    """Wrapper: basemap + composite (compatibilità self-test / vecchi caller)."""
+    resolved_center = center or {"lat": 42.2167, "lon": 14.45}
+    with tempfile.TemporaryDirectory() as directory:
+        basemap = Path(directory) / "basemap.png"
+        render_basemap(
+            osm_query, resolved_center, radius_m, str(basemap), fixture_mode
         )
-    plt.savefig(output, format="png", bbox_inches="tight", pad_inches=0)
-    plt.close()
+        ids = active_ids
+        if ids is None:
+            ids = [str(slot.get("id", f"slot_{i}")) for i, slot in enumerate(slots)]
+            for i, slot in enumerate(slots):
+                slot.setdefault("id", ids[i])
+                if "lat" not in slot or "lon" not in slot:
+                    # Legacy x/y normalizzati → lat/lon finti intorno al centro
+                    x = float(slot.get("x", 0.5))
+                    y = float(slot.get("y", 0.5))
+                    slot["lon"] = resolved_center["lon"] + (x - 0.5) * (
+                        2 * radius_m / 111_320.0
+                    )
+                    slot["lat"] = resolved_center["lat"] + (0.5 - y) * (
+                        2 * radius_m / 111_320.0
+                    )
+        composite_overlay(
+            str(basemap), slots, ids, resolved_center, radius_m, out_path
+        )
 
 
 def _self_test() -> None:
@@ -75,9 +146,11 @@ def _self_test() -> None:
         output = Path(directory) / "map.png"
         render_map(
             "Santa Maria Imbaro, Abruzzo, Italy",
-            [{"x": 0.5, "y": 0.5}],
+            [{"id": "centro", "lat": 42.2167, "lon": 14.45}],
             str(output),
             True,
+            center={"lat": 42.2167, "lon": 14.45},
+            active_ids=["centro"],
         )
         with Image.open(output) as image:
             image.verify()

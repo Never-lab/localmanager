@@ -12,3 +12,5 @@ export {
   buildSeedFromRows,
   type HydrateOptions,
 } from "./hydrate.js";
+export { buildDefaultMapSlots } from "./mapSlots.js";
+export { resolveComuneGeo } from "./nominatim.js";

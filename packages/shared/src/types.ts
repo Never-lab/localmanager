@@ -4,6 +4,24 @@ export type ProjectTemplateId = string;
 
 export type MapSlotId = "centro" | "zona_nord" | "viabilita_est";
 
+/** Slot geografico sul basemap (lat/lon assoluti). */
+export interface MapSlotDef {
+  id: MapSlotId;
+  labelIt: string;
+  lat: number;
+  lon: number;
+  radiusM: number;
+}
+
+/** Inquadramento stabile della mappa per una run. */
+export interface MapGeo {
+  osmQuery: string;
+  center: { lat: number; lon: number };
+  radiusM: number;
+  basemapRevision: string;
+  mapSlots: MapSlotDef[];
+}
+
 export interface StaffMember {
   role: StaffRole;
   hired: boolean;
@@ -90,6 +108,7 @@ export interface ComuneSeedSnapshot {
   projects: ProjectTemplate[];
   sourceYear: number | null;
   sources: string[];
+  map: MapGeo;
 }
 
 export interface GameState {
@@ -134,5 +153,6 @@ export interface NewGameOptions {
     sourceYear: number | null;
     sources: string[];
     projects: ProjectTemplate[];
+    map: MapGeo;
   };
 }

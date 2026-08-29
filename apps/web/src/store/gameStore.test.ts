@@ -17,6 +17,7 @@ function fixtureSeed(): ComuneSeedPayload {
     sourceYear: state.comune.sourceYear,
     sources: state.comune.sources,
     projects: state.comune.projects,
+    map: state.comune.map,
   };
 }
 
@@ -24,6 +25,7 @@ describe("game store", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
+    URL.revokeObjectURL = vi.fn();
     useGameStore.getState().reset();
   });
 
@@ -36,9 +38,12 @@ describe("game store", () => {
     expect(store.state?.month).toBe(1);
   });
 
-  it("uses a UUID for authenticated run IDs", () => {
+  it("uses a UUID for authenticated run IDs", async () => {
     vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
       "123e4567-e89b-42d3-a456-426614174000",
+    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200 }),
     );
     useGameStore.setState({ token: "token" });
 
@@ -46,6 +51,50 @@ describe("game store", () => {
 
     expect(useGameStore.getState().runId).toBe(
       "123e4567-e89b-42d3-a456-426614174000",
+    );
+    await vi.waitFor(() => {
+      expect(useGameStore.getState().mapJobPending).toBe(false);
+    });
+  });
+
+  it("startGame with token enqueues initial map job with geo", async () => {
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "123e4567-e89b-42d3-a456-426614174001",
+    );
+    URL.createObjectURL = vi.fn(() => "blob:start");
+    const seed = fixtureSeed();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 201 }))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get(name: string) {
+            if (name.toLowerCase() === "x-map-version") return "1";
+            return null;
+          },
+        },
+        async blob() {
+          return new Blob([Uint8Array.from([137, 80, 78, 71])]);
+        },
+      } as Response);
+
+    useGameStore.setState({ token: "token" });
+    useGameStore.getState().startGame("Ada Rossi", seed);
+
+    await vi.waitFor(() => {
+      expect(useGameStore.getState().mapUrl).toBe("blob:start");
+    });
+
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/runs/123e4567-e89b-42d3-a456-426614174001/map-jobs",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining(seed.map.osmQuery),
+      }),
     );
   });
 
@@ -180,6 +229,11 @@ describe("game store", () => {
     await useGameStore.getState().closeMonth();
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
+    const jobCall = fetchSpy.mock.calls[1];
+    expect(jobCall?.[0]).toBe("/api/runs/run-1/map-jobs");
+    const jobBody = JSON.parse(String(jobCall?.[1]?.body));
+    expect(jobBody.osmQuery).toContain("Santa Maria Imbaro");
+    expect(jobBody.center).toEqual(state.comune.map.center);
     expect(fetchSpy).toHaveBeenNthCalledWith(3, "/api/runs/run-1/map", {
       headers: {
         authorization: "Bearer token",

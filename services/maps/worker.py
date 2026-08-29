@@ -11,12 +11,11 @@ from typing import Any
 
 import requests
 
-from render import render_map
+from render import composite_overlay, render_basemap
 
 
 POLL_SECONDS = 3
 DATA_DIR = Path(os.getenv("LOCALMANAGER_MAPS_DATA_DIR", "/data/maps"))
-OSM_QUERY = "Santa Maria Imbaro, Abruzzo, Italy"
 
 
 def normalize_api_url(value: str) -> str:
@@ -77,17 +76,54 @@ def fail_job(
     response.raise_for_status()
 
 
+def _require_geo(job_input: dict[str, Any]) -> tuple[str, dict[str, float], float, str]:
+    """Estrae geo obbligatorio dal job (niente hardcode sul comune)."""
+    osm_query = job_input.get("osmQuery")
+    center = job_input.get("center")
+    radius_m = job_input.get("radiusM")
+    revision = job_input.get("basemapRevision")
+    if not isinstance(osm_query, str) or not osm_query:
+        raise ValueError("job input missing osmQuery")
+    if not isinstance(center, dict) or "lat" not in center or "lon" not in center:
+        raise ValueError("job input missing center")
+    if not isinstance(radius_m, (int, float)) or float(radius_m) <= 0:
+        raise ValueError("job input missing radiusM")
+    if not isinstance(revision, str) or not revision:
+        raise ValueError("job input missing basemapRevision")
+    return (
+        osm_query,
+        {"lat": float(center["lat"]), "lon": float(center["lon"])},
+        float(radius_m),
+        revision,
+    )
+
+
 def process_job(
     session: requests.Session, worker_key: str, job: dict[str, Any]
 ) -> None:
     job_id = job["id"]
     job_input = job["input"]
     run_dir = DATA_DIR / _safe_name(job["runId"])
+    run_dir.mkdir(parents=True, exist_ok=True)
     temporary_path = run_dir / f".{_safe_name(job_id)}.png"
-    slots = [{"name": slot} for slot in job_input.get("overlaySlots", [])]
 
     try:
-        render_map(OSM_QUERY, slots, str(temporary_path))
+        osm_query, center, radius_m, revision = _require_geo(job_input)
+        map_slots = list(job_input.get("mapSlots") or [])
+        overlay_slots = [str(s) for s in (job_input.get("overlaySlots") or [])]
+        cache_path = run_dir / f"basemap_{_safe_name(revision)}.png"
+
+        # Cache basemap per revisione: overlay successivo = solo composite.
+        if not cache_path.is_file():
+            render_basemap(osm_query, center, radius_m, str(cache_path))
+        composite_overlay(
+            str(cache_path),
+            map_slots,
+            overlay_slots,
+            center,
+            radius_m,
+            str(temporary_path),
+        )
         version = complete_job(session, worker_key, job_id, temporary_path)
     except Exception as error:
         temporary_path.unlink(missing_ok=True)

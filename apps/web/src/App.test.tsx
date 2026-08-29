@@ -25,6 +25,7 @@ function fixtureSeed(): ComuneSeedPayload {
     sourceYear: state.comune.sourceYear,
     sources: state.comune.sources,
     projects: state.comune.projects,
+    map: state.comune.map,
   };
 }
 
@@ -32,6 +33,7 @@ describe("desk interface", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
+    URL.revokeObjectURL = vi.fn();
     useGameStore.getState().reset();
   });
   afterEach(cleanup);
@@ -76,6 +78,7 @@ describe("desk interface", () => {
               },
               projects: seed.projects,
               sources: seed.sources,
+              map: seed.map,
             },
           }),
           { status: 202 },

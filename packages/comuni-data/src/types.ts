@@ -1,4 +1,4 @@
-import type { MapSlotId, ProjectTemplateId } from "@localmanager/shared";
+import type { MapGeo, MapSlotId, ProjectTemplateId } from "@localmanager/shared";
 
 export interface CatalogComune {
   id: string;
@@ -47,6 +47,8 @@ export interface ComuneSeed {
   meanAge: number;
   budget: ComuneBudgetSeed;
   projects: ComuneProjectSeed[];
+  /** Present on ready seeds; may be missing on legacy cache/fixtures until geo resolve. */
+  map?: MapGeo;
   fetchedAt: string;
   sources: string[];
 }
