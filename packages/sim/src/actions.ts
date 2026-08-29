@@ -4,7 +4,6 @@ import type {
   StaffRole,
 } from "@localmanager/shared";
 import { CLAMP } from "./config.js";
-import { loadComune } from "./loadComune.js";
 
 export type ActionResult =
   | { ok: true; state: GameState }
@@ -14,7 +13,7 @@ export function startProject(
   state: GameState,
   templateId: ProjectTemplateId,
 ): ActionResult {
-  const template = loadComune().projects.find(
+  const template = state.comune.projects.find(
     (candidate) => candidate.templateId === templateId,
   );
   if (!template) {

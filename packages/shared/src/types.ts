@@ -1,6 +1,6 @@
 export type StaffRole = "secretary" | "technician" | "communicator";
 
-export type ProjectTemplateId = "youth_space" | "road_fix" | "school_wing";
+export type ProjectTemplateId = string;
 
 export type MapSlotId = "centro" | "zona_nord" | "viabilita_est";
 
@@ -65,8 +65,36 @@ export interface ProvinceFundingRequest {
   resolveMonth: number;
 }
 
+export interface ProjectTemplate {
+  templateId: ProjectTemplateId;
+  nameIt: string;
+  cost: number;
+  months: number;
+  slotId: MapSlotId;
+  effects: {
+    population: number;
+    meanAge: number;
+    peopleRep: number;
+    politicalRep: number;
+  };
+}
+
+/** Snapshot of real open-data seed used for this run. */
+export interface ComuneSeedSnapshot {
+  comuneId: string;
+  name: string;
+  province: string | null;
+  region: string | null;
+  monthlyBaseIncome: number;
+  monthlyMaintenance: number;
+  projects: ProjectTemplate[];
+  sourceYear: number | null;
+  sources: string[];
+}
+
 export interface GameState {
-  comuneId: "069084";
+  comuneId: string;
+  comuneName: string;
   mayorName: string;
   month: number; // 1..48
   mandateMonths: 48;
@@ -85,9 +113,26 @@ export interface GameState {
   log: LogEntry[];
   status: "playing" | "won" | "lost";
   seed: number;
+  /** Real seed rates + project catalog for this mandate. */
+  comune: ComuneSeedSnapshot;
 }
 
 export interface NewGameOptions {
   mayorName: string;
   seed?: number;
+  /** Required for play outside sim unit tests; defaults to Santa Maria Imbaro fixture via loadComune(). */
+  comuneSeed?: {
+    comuneId: string;
+    name: string;
+    province: string | null;
+    region: string | null;
+    population: number;
+    meanAge: number;
+    openingCash: number;
+    monthlyBaseIncome: number;
+    monthlyMaintenance: number;
+    sourceYear: number | null;
+    sources: string[];
+    projects: ProjectTemplate[];
+  };
 }

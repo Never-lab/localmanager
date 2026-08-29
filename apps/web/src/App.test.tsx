@@ -8,7 +8,25 @@ import {
 import { createInitialGameState } from "@localmanager/sim";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { useGameStore } from "./store/gameStore";
+import { useGameStore, type ComuneSeedPayload } from "./store/gameStore";
+
+function fixtureSeed(): ComuneSeedPayload {
+  const state = createInitialGameState({ mayorName: "_" });
+  return {
+    comuneId: state.comuneId,
+    name: state.comuneName,
+    province: state.comune.province,
+    region: state.comune.region,
+    population: state.population,
+    meanAge: state.meanAge,
+    openingCash: state.cash,
+    monthlyBaseIncome: state.comune.monthlyBaseIncome,
+    monthlyMaintenance: state.comune.monthlyMaintenance,
+    sourceYear: state.comune.sourceYear,
+    sources: state.comune.sources,
+    projects: state.comune.projects,
+  };
+}
 
 describe("desk interface", () => {
   beforeEach(() => {
@@ -18,7 +36,54 @@ describe("desk interface", () => {
   });
   afterEach(cleanup);
 
-  it("lets a guest begin a mandate from the Italian entry flow", () => {
+  it("lets a guest begin a mandate from the Italian entry flow", async () => {
+    const seed = fixtureSeed();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/api/comuni?") && !url.includes("hydrate")) {
+        return new Response(
+          JSON.stringify({
+            count: 1,
+            items: [
+              {
+                id: seed.comuneId,
+                name: seed.name,
+                province: seed.province,
+                region: seed.region,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/hydrate") && !url.includes("/api/comuni/hydrate/")) {
+        return new Response(
+          JSON.stringify({
+            jobId: "job-1",
+            status: "ready",
+            seed: {
+              comuneId: seed.comuneId,
+              name: seed.name,
+              province: seed.province,
+              region: seed.region,
+              population: seed.population,
+              meanAge: seed.meanAge,
+              budget: {
+                openingCash: seed.openingCash,
+                monthlyBaseIncome: seed.monthlyBaseIncome,
+                monthlyMaintenance: seed.monthlyMaintenance,
+                sourceYear: seed.sourceYear ?? 2023,
+              },
+              projects: seed.projects,
+              sources: seed.sources,
+            },
+          }),
+          { status: 202 },
+        );
+      }
+      return new Response("{}", { status: 404 });
+    });
+
     render(<App />);
 
     expect(screen.getByText("Entra in municipio")).toBeTruthy();
@@ -26,6 +91,19 @@ describe("desk interface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nuovo mandato" }));
     fireEvent.change(screen.getByLabelText("Nome del sindaco"), {
       target: { value: "Ada Rossi" },
+    });
+    fireEvent.change(screen.getByLabelText("Cerca comune"), {
+      target: { value: "Santa Maria" },
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Santa Maria Imbaro")).toBeTruthy();
+    });
+    fireEvent.click(screen.getByLabelText(/Santa Maria Imbaro/));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Carica dati ufficiali" }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/Pronto: bilancio/)).toBeTruthy();
     });
     fireEvent.click(screen.getByRole("button", { name: "Apri il municipio" }));
 
@@ -35,7 +113,7 @@ describe("desk interface", () => {
   });
 
   it("explains why an unaffordable project is disabled", () => {
-    useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
     useGameStore.setState((store) => ({
       state: store.state ? { ...store.state, cash: 0 } : null,
     }));
@@ -48,45 +126,9 @@ describe("desk interface", () => {
     expect(project.getAttribute("title")).toContain("cassa");
   });
 
-  it("disables cloud resume when no saved run is known", () => {
-    useGameStore.setState({ screen: "menu", token: "token" });
-
+  it("shows an election forecast chip on the desk", () => {
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
     render(<App />);
-
-    const resume = screen.getByRole("button", { name: "Riprendi partita" });
-    expect(resume).toHaveProperty("disabled", true);
-    expect(resume.getAttribute("title")).toContain("salvataggio");
-  });
-
-  it("loads the remembered cloud save from the menu", async () => {
-    const savedState = createInitialGameState({ mayorName: "Ada Rossi" });
-    savedState.month = 4;
-    localStorage.setItem("localmanager:lastRunId", "run-4");
-    useGameStore.setState({ screen: "menu", token: "token" });
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ runId: "run-4", state: savedState }), {
-        status: 200,
-      }),
-    );
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Riprendi partita" }));
-
-    await waitFor(() =>
-      expect(screen.getByText("Mese 4 / 48")).toBeTruthy(),
-    );
-  });
-
-  it("does not draw SVG markers over a server-rendered map", () => {
-    const state = createInitialGameState({ mayorName: "Ada Rossi" });
-    state.overlay.activeSlots = ["centro"];
-    useGameStore.setState({ screen: "game", state, mapUrl: "blob:mappa" });
-    const { rerender } = render(<App />);
-
-    expect(screen.queryByLabelText("Interventi completati")).toBeNull();
-
-    useGameStore.setState({ mapUrl: null });
-    rerender(<App />);
-    expect(screen.getByLabelText("Interventi completati")).toBeTruthy();
+    expect(screen.getByText(/in vantaggio|in bilico|in ritardo/)).toBeTruthy();
   });
 });

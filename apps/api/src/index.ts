@@ -16,6 +16,7 @@ import {
   MapJobStateConflictError,
 } from "./mapJobs.js";
 import { getSave, putSave } from "./saves.js";
+import { getHydrateJob, listComuni, startHydrate } from "./comuni.js";
 
 interface ApiConfig {
   secret: string;
@@ -137,6 +138,38 @@ export function createApiServer(pool: Database, config: ApiConfig) {
           storage: "postgres",
           maps: config.workerKey ? "ok" : "unconfigured",
         });
+      }
+
+      if (method === "GET" && path === "/api/comuni") {
+        const list = await listComuni({
+          q: url.searchParams.get("q") ?? undefined,
+          region: url.searchParams.get("region") ?? undefined,
+          province: url.searchParams.get("province") ?? undefined,
+          limit: Number(url.searchParams.get("limit") ?? 40) || 40,
+        });
+        return sendJson(response, 200, list);
+      }
+
+      const hydrateStart = path.match(/^\/api\/comuni\/([^/]+)\/hydrate$/);
+      if (hydrateStart && method === "POST") {
+        const started = await startHydrate(
+          pool,
+          decodeURIComponent(hydrateStart[1]),
+        );
+        return sendJson(response, 202, started);
+      }
+
+      const hydrateStatus = path.match(
+        /^\/api\/comuni\/hydrate\/([^/]+)$/,
+      );
+      if (hydrateStatus && method === "GET") {
+        const job = await getHydrateJob(
+          pool,
+          decodeURIComponent(hydrateStatus[1]),
+        );
+        return job
+          ? sendJson(response, 200, job)
+          : sendJson(response, 404, { error: "Hydrate job not found" });
       }
 
       if (method === "POST" && path === "/api/auth/register") {

@@ -1,0 +1,49 @@
+{
+  "comuneId": "069084",
+  "name": "Santa Maria Imbaro",
+  "province": "CH",
+  "region": "Abruzzo",
+  "population": 2022,
+  "meanAge": 43.1,
+  "budget": {
+    "openingCash": 850000,
+    "monthlyBaseIncome": 42000,
+    "monthlyMaintenance": 18000,
+    "sourceYear": 2023,
+    "sourceUrls": [
+      "fixture://bdap-entrate",
+      "fixture://bdap-spese"
+    ]
+  },
+  "projects": [
+    {
+      "templateId": "cup_FIXTURE_SCHOOL",
+      "nameIt": "Ala scolastica (fixture OpenCUP)",
+      "cost": 280000,
+      "months": 8,
+      "slotId": "zona_nord",
+      "effects": { "population": 25, "meanAge": -0.4, "peopleRep": 5, "politicalRep": 2 },
+      "sourceCup": "FIXTURE_SCHOOL"
+    },
+    {
+      "templateId": "cup_FIXTURE_ROAD",
+      "nameIt": "Sistemazione viabilità (fixture OpenCUP)",
+      "cost": 200000,
+      "months": 5,
+      "slotId": "viabilita_est",
+      "effects": { "population": 8, "meanAge": 0, "peopleRep": 3, "politicalRep": 3 },
+      "sourceCup": "FIXTURE_ROAD"
+    },
+    {
+      "templateId": "cup_FIXTURE_YOUTH",
+      "nameIt": "Spazio giovani (fixture OpenCUP)",
+      "cost": 120000,
+      "months": 4,
+      "slotId": "centro",
+      "effects": { "population": 15, "meanAge": -0.2, "peopleRep": 4, "politicalRep": 1 },
+      "sourceCup": "FIXTURE_YOUTH"
+    }
+  ],
+  "fetchedAt": "2026-08-29T00:00:00.000Z",
+  "sources": ["fixture://opendata-sample"]
+}

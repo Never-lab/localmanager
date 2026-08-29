@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Database } from "./db.js";
 
 interface MapJobInput {
-  comuneId: "069084";
+  comuneId: string;
   runId: string;
   overlaySlots: string[];
   basemapRevision: string;
@@ -67,9 +67,12 @@ export async function enqueueMapJob(
     throw new MapJobOwnershipError("Run belongs to another user");
   }
 
-  const source = body as { basemapRevision?: unknown };
+  const source = body as { basemapRevision?: unknown; comuneId?: unknown };
   const input: MapJobInput = {
-    comuneId: "069084",
+    comuneId:
+      typeof source.comuneId === "string" && source.comuneId
+        ? source.comuneId
+        : "069084",
     runId,
     overlaySlots: extractOverlaySlots(body),
     basemapRevision:

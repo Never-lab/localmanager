@@ -1,6 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInitialGameState } from "@localmanager/sim";
-import { useGameStore } from "./gameStore";
+import { useGameStore, type ComuneSeedPayload } from "./gameStore";
+
+function fixtureSeed(): ComuneSeedPayload {
+  const state = createInitialGameState({ mayorName: "_" });
+  return {
+    comuneId: state.comuneId,
+    name: state.comuneName,
+    province: state.comune.province,
+    region: state.comune.region,
+    population: state.population,
+    meanAge: state.meanAge,
+    openingCash: state.cash,
+    monthlyBaseIncome: state.comune.monthlyBaseIncome,
+    monthlyMaintenance: state.comune.monthlyMaintenance,
+    sourceYear: state.comune.sourceYear,
+    sources: state.comune.sources,
+    projects: state.comune.projects,
+  };
+}
 
 describe("game store", () => {
   beforeEach(() => {
@@ -10,7 +28,7 @@ describe("game store", () => {
   });
 
   it("starts a mandate for the named mayor", () => {
-    useGameStore.getState().startGame("  Ada Rossi  ");
+    useGameStore.getState().startGame("  Ada Rossi  ", fixtureSeed());
 
     const store = useGameStore.getState();
     expect(store.screen).toBe("game");
@@ -24,7 +42,7 @@ describe("game store", () => {
     );
     useGameStore.setState({ token: "token" });
 
-    useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
 
     expect(useGameStore.getState().runId).toBe(
       "123e4567-e89b-42d3-a456-426614174000",
@@ -32,7 +50,7 @@ describe("game store", () => {
   });
 
   it("applies simulation actions to the current game", () => {
-    useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
     const openingCash = useGameStore.getState().state!.cash;
 
     useGameStore.getState().startProject("road_fix");
@@ -45,7 +63,7 @@ describe("game store", () => {
 
   it("advances a guest game without contacting the API", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
     useGameStore.setState({
       state: {
         ...useGameStore.getState().state!,
@@ -60,7 +78,7 @@ describe("game store", () => {
   });
 
   it("blocks closing the month while events are pending", async () => {
-    useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
 
     await useGameStore.getState().closeMonth();
 
@@ -152,7 +170,6 @@ describe("game store", () => {
             return null;
           },
         },
-        // Avoid Response(Blob).blob() — jsdom on CI throws "object.stream is not a function".
         async blob() {
           return new Blob([Uint8Array.from([137, 80, 78, 71])], {
             type: "image/png",

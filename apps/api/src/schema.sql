@@ -46,3 +46,24 @@ CREATE TABLE IF NOT EXISTS map_artifacts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (run_id, map_version)
 );
+
+CREATE TABLE IF NOT EXISTS comune_seeds (
+  istat_id TEXT PRIMARY KEY,
+  seed_json JSONB NOT NULL,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS hydrate_jobs (
+  id UUID PRIMARY KEY,
+  istat_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN ('queued', 'downloading', 'filtering', 'mapping', 'ready', 'failed')
+  ),
+  seed_json JSONB,
+  error_it TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS hydrate_jobs_istat_created
+  ON hydrate_jobs (istat_id, created_at DESC);

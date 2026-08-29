@@ -14,10 +14,7 @@ import {
 } from "./config.js";
 import { resolveElection } from "./election.js";
 import { drawMonthlyEvent } from "./events.js";
-import { loadComune } from "./loadComune.js";
 import { nextRandom } from "./rng.js";
-
-const comune = loadComune();
 
 export function canCloseMonth(state: GameState): boolean {
   return state.status === "playing" && state.pendingEvents.length === 0;
@@ -38,8 +35,8 @@ export function advanceMonth(state: GameState): GameState {
     .reduce((total, member) => total + member.monthlyCost, 0);
   let cash =
     state.cash +
-    comune.budget.monthlyBaseIncome -
-    comune.budget.monthlyMaintenance -
+    state.comune.monthlyBaseIncome -
+    state.comune.monthlyMaintenance -
     staffCosts;
   let population = state.population;
   let meanAge = state.meanAge;
@@ -61,7 +58,7 @@ export function advanceMonth(state: GameState): GameState {
       continue;
     }
 
-    const template = comune.projects.find(
+    const template = state.comune.projects.find(
       (candidate) => candidate.templateId === project.templateId,
     );
     if (!template) {

@@ -1,10 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import type {
   MapSlotId,
-  ProjectTemplateId,
   StaffRole,
 } from "@localmanager/shared";
-import { LAST_RUN_ID_KEY, useGameStore } from "./store/gameStore";
+import { LAST_RUN_ID_KEY, useGameStore, type ComuneSeedPayload } from "./store/gameStore";
 import { canCloseMonth, electionForecast } from "@localmanager/sim";
 import { Icon, type IconName } from "./ui/Icon";
 import {
@@ -19,17 +18,6 @@ const money = new Intl.NumberFormat("it-IT", {
   currency: "EUR",
   maximumFractionDigits: 0,
 });
-
-const projects: Array<{
-  id: ProjectTemplateId;
-  name: string;
-  cost: number;
-  months: number;
-}> = [
-  { id: "youth_space", name: "Spazio giovani", cost: 120_000, months: 4 },
-  { id: "road_fix", name: "Sistemazione viabilità", cost: 200_000, months: 5 },
-  { id: "school_wing", name: "Ala scolastica", cost: 280_000, months: 8 },
-];
 
 const roleNames: Record<StaffRole, string> = {
   secretary: "Segretario comunale",
@@ -194,7 +182,7 @@ function MenuScreen() {
         </div>
         <p className="brand-mark">LocalManager</p>
         <p className="eyebrow">Palazzo comunale</p>
-        <h1>Governa un piccolo Comune abruzzese</h1>
+        <h1>Governa un Comune italiano</h1>
         <p className="lead">un mese alla volta.</p>
         <div className="cta-stack">
           <button className="primary large" type="button" onClick={goToSetup}>
@@ -234,10 +222,140 @@ function SetupScreen() {
   const startGame = useGameStore((store) => store.startGame);
   const error = useGameStore((store) => store.errorIt);
   const [name, setName] = useState("");
+  const [query, setQuery] = useState("Santa Maria Imbaro");
+  const [results, setResults] = useState<
+    Array<{
+      id: string;
+      name: string;
+      province: string | null;
+      region: string | null;
+    }>
+  >([]);
+  const [selected, setSelected] = useState<{
+    id: string;
+    name: string;
+    province: string | null;
+    region: string | null;
+  } | null>(null);
+  const [hydrateStatus, setHydrateStatus] = useState<string | null>(null);
+  const [seed, setSeed] = useState<ComuneSeedPayload | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const search = async (q: string) => {
+    setQuery(q);
+    if (q.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/comuni?q=${encodeURIComponent(q.trim())}&limit=20`,
+      );
+      if (!response.ok) throw new Error("Catalogo non disponibile.");
+      const data = (await response.json()) as {
+        items: Array<{
+          id: string;
+          name: string;
+          province: string | null;
+          region: string | null;
+        }>;
+      };
+      setResults(data.items);
+    } catch (err) {
+      setLocalError(
+        err instanceof Error ? err.message : "Ricerca comuni fallita.",
+      );
+    }
+  };
+
+  const hydrate = async () => {
+    if (!selected) {
+      setLocalError("Seleziona un comune dalla lista.");
+      return;
+    }
+    setBusy(true);
+    setLocalError(null);
+    setSeed(null);
+    setHydrateStatus("queued");
+    try {
+      const start = await fetch(
+        `/api/comuni/${encodeURIComponent(selected.id)}/hydrate`,
+        { method: "POST" },
+      );
+      if (!start.ok) throw new Error("Impossibile avviare il caricamento dati.");
+      const started = (await start.json()) as {
+        jobId: string;
+        status: string;
+        seed?: {
+          comuneId: string;
+          name: string;
+          province: string | null;
+          region: string | null;
+          population: number;
+          meanAge: number;
+          budget: {
+            openingCash: number;
+            monthlyBaseIncome: number;
+            monthlyMaintenance: number;
+            sourceYear: number;
+          };
+          projects: ComuneSeedPayload["projects"];
+          sources: string[];
+        };
+      };
+      if (started.status === "ready" && started.seed) {
+        setSeed(toPayload(started.seed));
+        setHydrateStatus("ready");
+        return;
+      }
+      for (let i = 0; i < 120; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const poll = await fetch(
+          `/api/comuni/hydrate/${encodeURIComponent(started.jobId)}`,
+        );
+        if (!poll.ok) throw new Error("Stato caricamento non disponibile.");
+        const job = (await poll.json()) as {
+          status: string;
+          errorIt?: string;
+          seed?: typeof started.seed;
+        };
+        setHydrateStatus(job.status);
+        if (job.status === "ready" && job.seed) {
+          setSeed(toPayload(job.seed));
+          return;
+        }
+        if (job.status === "failed") {
+          throw new Error(
+            job.errorIt ??
+              "Dati ufficiali non disponibili per questo comune.",
+          );
+        }
+      }
+      throw new Error(
+        "Il caricamento richiede troppo tempo. Riprova più tardi.",
+      );
+    } catch (err) {
+      setHydrateStatus("failed");
+      setLocalError(
+        err instanceof Error ? err.message : "Caricamento dati fallito.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    startGame(name);
+    if (!seed) {
+      setLocalError(
+        "Carica prima i dati ufficiali del comune (bilancio e progetti).",
+      );
+      return;
+    }
+    startGame(name, seed);
   };
+
   return (
     <Frame>
       <section className="shell-entry">
@@ -256,18 +374,70 @@ function SetupScreen() {
               placeholder="Es. Ada Rossi"
             />
           </label>
+          <label>
+            Cerca comune
+            <input
+              value={query}
+              onChange={(event) => void search(event.target.value)}
+              placeholder="Nome o codice ISTAT"
+            />
+          </label>
           <fieldset>
-            <legend>Comune assegnato</legend>
-            <label className="municipality-choice">
-              <input type="radio" checked readOnly />
-              <span>
-                <strong>Santa Maria Imbaro</strong>
-                <small>Provincia di Chieti · codice ISTAT 069084</small>
-              </span>
-            </label>
+            <legend>Comune</legend>
+            {results.map((item) => (
+              <label className="municipality-choice" key={item.id}>
+                <input
+                  type="radio"
+                  name="comune"
+                  checked={selected?.id === item.id}
+                  onChange={() => {
+                    setSelected(item);
+                    setSeed(null);
+                    setHydrateStatus(null);
+                  }}
+                />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>
+                    {[item.province, item.region, `ISTAT ${item.id}`]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                </span>
+              </label>
+            ))}
+            {!results.length && (
+              <p className="close-hint">
+                Digita almeno 2 caratteri per cercare tra i comuni ISTAT.
+              </p>
+            )}
           </fieldset>
-          {error && <p className="error-note">{error}</p>}
-          <button className="primary" type="submit">
+          <button
+            className="secondary"
+            type="button"
+            disabled={!selected || busy}
+            title={
+              !selected
+                ? "Seleziona un comune prima di caricare i dati."
+                : "Scarica bilancio BDAP e progetti OpenCUP per questo comune."
+            }
+            onClick={() => void hydrate()}
+          >
+            <Icon name="document" weight="bold" size={18} />
+            {busy
+              ? `Caricamento… (${hydrateStatus ?? "queued"})`
+              : "Carica dati ufficiali"}
+          </button>
+          {seed && (
+            <p className="close-hint">
+              Pronto: bilancio {seed.sourceYear ?? "n/d"}, {seed.projects.length}{" "}
+              progetti · pop. {seed.population.toLocaleString("it-IT")}
+            </p>
+          )}
+          {(localError || error) && (
+            <p className="error-note">{localError ?? error}</p>
+          )}
+          <button className="primary" type="submit" disabled={!seed || busy}>
             <Icon name="building" weight="bold" size={18} />
             Apri il municipio
           </button>
@@ -275,6 +445,38 @@ function SetupScreen() {
       </section>
     </Frame>
   );
+}
+
+function toPayload(seed: {
+  comuneId: string;
+  name: string;
+  province: string | null;
+  region: string | null;
+  population: number;
+  meanAge: number;
+  budget: {
+    openingCash: number;
+    monthlyBaseIncome: number;
+    monthlyMaintenance: number;
+    sourceYear: number;
+  };
+  projects: ComuneSeedPayload["projects"];
+  sources: string[];
+}): ComuneSeedPayload {
+  return {
+    comuneId: seed.comuneId,
+    name: seed.name,
+    province: seed.province,
+    region: seed.region,
+    population: seed.population,
+    meanAge: seed.meanAge,
+    openingCash: seed.budget.openingCash,
+    monthlyBaseIncome: seed.budget.monthlyBaseIncome,
+    monthlyMaintenance: seed.budget.monthlyMaintenance,
+    sourceYear: seed.budget.sourceYear,
+    sources: seed.sources,
+    projects: seed.projects,
+  };
 }
 
 function Meter({ label, value }: { label: string; value: number }) {
@@ -357,7 +559,7 @@ function GameScreen() {
     <Frame>
       <header className="sticky">
         <div>
-          <p className="eyebrow">Comune di Santa Maria Imbaro</p>
+          <p className="eyebrow">Comune di {state.comuneName}</p>
           <h1>Scrivania del sindaco</h1>
         </div>
         <div className="sticky-actions">
@@ -407,12 +609,12 @@ function GameScreen() {
                   {state.activeProjects.length} in corso
                 </span>
               </div>
-              {projects.map((project) => {
+              {state.comune.projects.map((project) => {
                 const disabled = state.cash < project.cost;
                 return (
-                  <div className="deal-row" key={project.id}>
+                  <div className="deal-row" key={project.templateId}>
                     <div>
-                      <strong>{project.name}</strong>
+                      <strong>{project.nameIt}</strong>
                       <span>
                         {money.format(project.cost)} · {project.months} mesi
                       </span>
@@ -423,12 +625,12 @@ function GameScreen() {
                       title={
                         disabled
                           ? "Non c'è abbastanza cassa: attendi nuove entrate o chiedi fondi."
-                          : `Avvia ${project.name}`
+                          : `Avvia ${project.nameIt}`
                       }
-                      onClick={() => startProject(project.id)}
+                      onClick={() => startProject(project.templateId)}
                     >
                       <Icon name="play" size={16} />
-                      Avvia {project.name}
+                      Avvia {project.nameIt}
                     </button>
                   </div>
                 );
@@ -438,7 +640,9 @@ function GameScreen() {
                   className="active-file"
                   key={`${project.templateId}-${project.slotId}`}
                 >
-                  {projects.find((item) => item.id === project.templateId)?.name}
+                  {state.comune.projects.find(
+                    (item) => item.templateId === project.templateId,
+                  )?.nameIt}
                   : restano {project.monthsRemaining} mesi
                 </p>
               ))}
