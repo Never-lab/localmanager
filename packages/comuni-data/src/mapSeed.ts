@@ -7,9 +7,9 @@ const SLOTS: MapSlotId[] = ["centro", "zona_nord", "viabilita_est"];
 type Category = "youth_space" | "road_fix" | "school_wing";
 
 const CATEGORY_EFFECTS: Record<Category, ComuneProjectSeed["effects"]> = {
-  youth_space: { population: 15, meanAge: -0.2, peopleRep: 4, politicalRep: 1 },
-  road_fix: { population: 8, meanAge: 0, peopleRep: 3, politicalRep: 3 },
-  school_wing: { population: 25, meanAge: -0.4, peopleRep: 5, politicalRep: 2 },
+  youth_space: { population: 15, meanAge: -0.2, peopleRep: 8, politicalRep: 4 },
+  road_fix: { population: 8, meanAge: 0, peopleRep: 6, politicalRep: 6 },
+  school_wing: { population: 25, meanAge: -0.4, peopleRep: 10, politicalRep: 6 },
 };
 
 const NATURA_MONTHS: Record<string, number> = {

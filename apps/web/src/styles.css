@@ -362,6 +362,45 @@ input:focus {
   font-size: 0.82rem;
 }
 
+.toast-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-left: 3px solid var(--color-accent);
+  padding: 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.coach-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.coach-list li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.coach-list li[data-done="1"] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.coach-list li span {
+  font-family: var(--font-mono);
+  width: 1rem;
+}
+
 fieldset {
   margin: 0;
   border: 1px solid var(--color-border);

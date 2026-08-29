@@ -23,7 +23,7 @@
       "cost": 280000,
       "months": 8,
       "slotId": "zona_nord",
-      "effects": { "population": 25, "meanAge": -0.4, "peopleRep": 5, "politicalRep": 2 },
+      "effects": { "population": 25, "meanAge": -0.4, "peopleRep": 10, "politicalRep": 6 },
       "sourceCup": "FIXTURE_SCHOOL"
     },
     {
@@ -32,7 +32,7 @@
       "cost": 200000,
       "months": 5,
       "slotId": "viabilita_est",
-      "effects": { "population": 8, "meanAge": 0, "peopleRep": 3, "politicalRep": 3 },
+      "effects": { "population": 8, "meanAge": 0, "peopleRep": 6, "politicalRep": 6 },
       "sourceCup": "FIXTURE_ROAD"
     },
     {
@@ -41,7 +41,7 @@
       "cost": 120000,
       "months": 4,
       "slotId": "centro",
-      "effects": { "population": 15, "meanAge": -0.2, "peopleRep": 4, "politicalRep": 1 },
+      "effects": { "population": 15, "meanAge": -0.2, "peopleRep": 8, "politicalRep": 4 },
       "sourceCup": "FIXTURE_YOUTH"
     }
   ],
