@@ -13,8 +13,10 @@ import projects from "../../../data/comuni/santa-maria-imbaro/projects.json" wit
 };
 
 interface ComuneMeta {
-  comuneId: "069084";
+  comuneId: string;
   name: string;
+  province?: string;
+  region?: string;
 }
 
 interface Demographics {
@@ -49,6 +51,7 @@ export interface ComuneData {
   projects: ProjectTemplate[];
 }
 
+/** Default fixture for sim unit tests only — not a claim of real bilancio. */
 export function loadComune(): ComuneData {
   return {
     meta: meta as ComuneMeta,

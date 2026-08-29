@@ -1,5 +1,5 @@
 export interface MapJobInput {
-  comuneId: "069084";
+  comuneId: string;
   runId: string;
   overlaySlots: string[];
   basemapRevision: string;

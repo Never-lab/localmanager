@@ -15,6 +15,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@localmanager/comuni-data": "*",
     "pg": "^8.23.0"
   }
 }

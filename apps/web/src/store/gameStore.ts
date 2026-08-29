@@ -19,6 +19,21 @@ import { create } from "zustand";
 
 export type Screen = "auth" | "menu" | "setup" | "game" | "gameover";
 
+export interface ComuneSeedPayload {
+  comuneId: string;
+  name: string;
+  province: string | null;
+  region: string | null;
+  population: number;
+  meanAge: number;
+  openingCash: number;
+  monthlyBaseIncome: number;
+  monthlyMaintenance: number;
+  sourceYear: number | null;
+  sources: string[];
+  projects: GameState["comune"]["projects"];
+}
+
 interface GameStore {
   screen: Screen;
   state: GameState | null;
@@ -34,7 +49,7 @@ interface GameStore {
   ) => Promise<void>;
   continueAsGuest: () => void;
   goToSetup: () => void;
-  startGame: (mayorName: string) => void;
+  startGame: (mayorName: string, comuneSeed?: ComuneSeedPayload) => void;
   startProject: (templateId: ProjectTemplateId) => void;
   hireStaff: (role: StaffRole) => void;
   fireStaff: (role: StaffRole) => void;
@@ -67,12 +82,6 @@ function authorization(token: string): HeadersInit {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
-}
-
-function revokeMapUrl(mapUrl: string | null) {
-  if (mapUrl?.startsWith("blob:") && typeof URL.revokeObjectURL === "function") {
-    URL.revokeObjectURL(mapUrl);
-  }
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -114,15 +123,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     continueAsGuest: () => set({ screen: "menu", token: null, errorIt: null }),
     goToSetup: () => set({ screen: "setup", errorIt: null }),
 
-    startGame: (mayorName) => {
+    startGame: (mayorName, comuneSeed) => {
       const name = mayorName.trim();
       if (!name) {
         set({ errorIt: "Inserisci il nome del sindaco." });
         return;
       }
+      if (!comuneSeed) {
+        set({
+          errorIt:
+            "Carica prima i dati ufficiali del comune (bilancio e progetti).",
+        });
+        return;
+      }
       set({
         screen: "game",
-        state: createInitialGameState({ mayorName: name }),
+        state: createInitialGameState({ mayorName: name, comuneSeed }),
         runId: get().token ? crypto.randomUUID() : null,
         mapUrl: null,
         errorIt: null,
@@ -253,38 +269,45 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     resumeGame: async () => {
-      const { token } = get();
+      const token = get().token;
       const runId = localStorage.getItem(LAST_RUN_ID_KEY);
-      if (!token || !runId) return;
-      set({ errorIt: null });
+      if (!token || !runId) {
+        set({
+          errorIt: token
+            ? "Nessun salvataggio online su questo dispositivo."
+            : "Accedi per riprendere una partita online.",
+        });
+        return;
+      }
       try {
-        const response = await fetch(
-          `/api/saves/${encodeURIComponent(runId)}`,
-          { headers: authorization(token) },
-        );
-        if (!response.ok) throw new Error("Salvataggio non disponibile.");
-        const saved = (await response.json()) as {
+        const response = await fetch(`/api/saves/${encodeURIComponent(runId)}`, {
+          headers: authorization(token),
+        });
+        if (!response.ok) throw new Error("Salvataggio non trovato.");
+        const payload = (await response.json()) as {
           runId: string;
           state: GameState;
         };
-        revokeMapUrl(get().mapUrl);
         set({
-          screen: saved.state.status === "playing" ? "game" : "gameover",
-          state: saved.state,
-          runId: saved.runId,
+          screen: "game",
+          runId: payload.runId,
+          state: payload.state,
           mapUrl: null,
           errorIt: null,
         });
       } catch (error) {
         set({
           errorIt:
-            error instanceof Error ? error.message : "Operazione non riuscita.",
+            error instanceof Error
+              ? error.message
+              : "Impossibile riprendere la partita.",
         });
       }
     },
 
     returnToMenu: () => {
-      revokeMapUrl(get().mapUrl);
+      const mapUrl = get().mapUrl;
+      if (mapUrl?.startsWith("blob:")) URL.revokeObjectURL(mapUrl);
       set({
         screen: "menu",
         state: null,
@@ -294,9 +317,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         errorIt: null,
       });
     },
+
     reset: () => {
-      revokeMapUrl(get().mapUrl);
-      set(initialState);
+      const mapUrl = get().mapUrl;
+      if (mapUrl?.startsWith("blob:")) URL.revokeObjectURL(mapUrl);
+      set({ ...initialState });
     },
   };
 });
