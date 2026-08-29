@@ -14,9 +14,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Build workspace packages (exports point at dist/)
+        run: npm run build -w @localmanager/shared && npm run build -w @localmanager/sim
       - name: Test sim, API, and web
         run: npm test
-      - run: npm run build
+      - name: Build web and API
+        run: npm run build -w @localmanager/web && npm run build -w @localmanager/api
 
   maps:
     runs-on: ubuntu-latest
