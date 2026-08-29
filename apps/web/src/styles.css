@@ -568,7 +568,8 @@ fieldset legend {
 
 .map-stage {
   position: relative;
-  min-height: 420px;
+  width: 100%;
+  aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -584,7 +585,7 @@ fieldset legend {
 }
 
 .map-stage img {
-  /* cover ritagliava il PNG quadrato → effetto "zoom" sul centro */
+  /* PNG quadrato + stage 1:1 → riempie il blocco senza letterbox */
   object-fit: contain;
   object-position: center;
 }
@@ -806,10 +807,6 @@ fieldset legend {
   .work-grid .projects {
     grid-column: auto;
   }
-
-  .map-stage {
-    min-height: 340px;
-  }
 }
 
 @media (max-width: 580px) {
@@ -832,10 +829,6 @@ fieldset legend {
 
   .close-stack .primary {
     width: 100%;
-  }
-
-  .map-stage {
-    min-height: 280px;
   }
 
   .deal-row {

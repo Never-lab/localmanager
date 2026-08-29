@@ -17,6 +17,19 @@ FIXTURE_PATH = ROOT / "fixtures" / "basemap_stub.png"
 COLORS = ("#e63946", "#457b9d", "#f4a261", "#2a9d8f", "#9b5de5")
 
 
+def marker_radius_px(image_size: tuple[int, int]) -> int:
+    """Raggio marker in pixel: pin leggibile, non disco gigante sul basemap HQ."""
+    return max(3, min(image_size) // 200)
+
+
+def ensure_vsketch_stub() -> None:
+    """prettymaps avvisa se manca vsketch (plotter); non ci serve, stub silenzioso."""
+    import sys
+    import types
+
+    sys.modules.setdefault("vsketch", types.ModuleType("vsketch"))
+
+
 def latlon_to_pixel(
     lat: float,
     lon: float,
@@ -56,6 +69,8 @@ def render_basemap(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
+    ensure_vsketch_stub()
     import prettymaps
 
     # Inquadramento esplicito: stesso radius/center a ogni regen.
@@ -89,7 +104,7 @@ def composite_overlay(
     draw = ImageDraw.Draw(image)
     active = set(active_ids)
     slots_by_id = {str(slot.get("id")): slot for slot in map_slots}
-    radius_px = max(5, min(image.size) // 30)
+    radius_px = marker_radius_px(image.size)
     for index, slot_id in enumerate(active_ids):
         slot = slots_by_id.get(slot_id)
         if not slot:

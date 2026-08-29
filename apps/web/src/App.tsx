@@ -543,8 +543,8 @@ function MapPanel() {
               const [cx, cy] = slotPositions[slot];
               return (
                 <g key={slot}>
-                  <circle className="map-pulse" cx={cx} cy={cy} r="5.5" />
-                  <circle className="map-dot" cx={cx} cy={cy} r="2.5" />
+                  <circle className="map-pulse" cx={cx} cy={cy} r="2.2" />
+                  <circle className="map-dot" cx={cx} cy={cy} r="1.1" />
                 </g>
               );
             })}
