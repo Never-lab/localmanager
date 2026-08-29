@@ -1,0 +1,26 @@
+[
+  {
+    "templateId": "youth_space",
+    "nameIt": "Spazio giovani",
+    "cost": 120000,
+    "months": 4,
+    "slotId": "centro",
+    "effects": { "population": 15, "meanAge": -0.2, "peopleRep": 4, "politicalRep": 1 }
+  },
+  {
+    "templateId": "road_fix",
+    "nameIt": "Sistemazione viabilità",
+    "cost": 200000,
+    "months": 5,
+    "slotId": "viabilita_est",
+    "effects": { "population": 8, "meanAge": 0, "peopleRep": 3, "politicalRep": 3 }
+  },
+  {
+    "templateId": "school_wing",
+    "nameIt": "Ala scolastica",
+    "cost": 280000,
+    "months": 8,
+    "slotId": "zona_nord",
+    "effects": { "population": 25, "meanAge": -0.4, "peopleRep": 5, "politicalRep": 2 }
+  }
+]
