@@ -136,4 +136,11 @@ describe("desk interface", () => {
     render(<App />);
     expect(screen.getByText(/in vantaggio|in bilico|in ritardo/)).toBeTruthy();
   });
+
+  it("shows the monthly cassa forecast on the desk", () => {
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
+    render(<App />);
+    expect(screen.getByText("Previsione mese")).toBeTruthy();
+    expect(screen.getByText("Netto previsto")).toBeTruthy();
+  });
 });

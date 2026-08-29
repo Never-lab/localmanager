@@ -7,6 +7,9 @@ export {
   mapBdapToProjects,
   mapCupToProjects,
   filterRowsByIstat,
+  capOpeningDebt,
+  MIN_MONTHLY_SURPLUS,
+  DEBT_CAP_MONTHS,
 } from "./mapSeed.js";
 export {
   resolveBdapDumpUrls,

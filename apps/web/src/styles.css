@@ -443,6 +443,31 @@ fieldset legend {
   color: var(--color-accent);
 }
 
+.cash-forecast {
+  margin-top: 0.75rem;
+}
+
+.cash-forecast ul {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.cash-forecast li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.cash-forecast-net {
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-border);
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
