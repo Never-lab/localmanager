@@ -309,4 +309,23 @@ describe("game store", () => {
       activeSlots: ["viabilita_est"],
     });
   });
+
+  it("celebrates first-win event and full cycle with toasts", async () => {
+    useGameStore.getState().startGame("Ada Rossi", fixtureSeed());
+    const event = useGameStore.getState().state!.pendingEvents[0]!;
+    const free =
+      event.choices.find((choice) => choice.requiresCash === undefined) ??
+      event.choices[0]!;
+
+    useGameStore.getState().resolveEvent(event.id, free.id);
+    expect(useGameStore.getState().toastIt).toBe("Primo evento gestito");
+    useGameStore.getState().dismissToast();
+
+    const project = useGameStore.getState().state!.comune.projects[0]!;
+    useGameStore.getState().startProject(project.templateId);
+
+    await useGameStore.getState().closeMonth();
+    expect(useGameStore.getState().toastIt).toMatch(/Primo ciclo completo/);
+    expect(useGameStore.getState().firstWinFlags.cycleToast).toBe(true);
+  });
 });

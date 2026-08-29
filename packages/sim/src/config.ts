@@ -4,13 +4,14 @@ export const MANDATE_MONTHS = 48 as const;
 /** Educational mortgage horizon for monthly debt service (20 years). */
 export const DEBT_HORIZON_MONTHS = 240;
 export const RIVAL_INTERVAL_MONTHS = 6;
-export const RIVAL_HEAT_GAIN = 8;
+/** Rival pressure per move; tuned so full project catalog can beat idle lose. */
+export const RIVAL_HEAT_GAIN = 5;
 export const PROVINCE_SUCCESS_CHANCE = 0.55;
 export const MEAN_AGE_MONTHLY_DRIFT = 0.01;
 export const POPULATION_NOISE_RANGE = 1;
 export const INITIAL_PEOPLE_REP = 50;
 export const INITIAL_POLITICAL_REP = 50;
-export const INITIAL_RIVAL_HEAT = 35;
+export const INITIAL_RIVAL_HEAT = 42;
 export const ELECTION_TOSS_UP_MARGIN = 5;
 export const RNG_MULTIPLIER = 1664525;
 export const RNG_INCREMENT = 1013904223;

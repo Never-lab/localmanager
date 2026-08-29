@@ -4,6 +4,7 @@ export * from "./config.js";
 export * from "./createInitial.js";
 export * from "./election.js";
 export * from "./events.js";
+export * from "./firstWin.js";
 export * from "./forecastMonthCash.js";
 export * from "./loadComune.js";
 export * from "./rng.js";

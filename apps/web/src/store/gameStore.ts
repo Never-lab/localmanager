@@ -8,6 +8,7 @@ import {
   advanceMonth,
   canCloseMonth,
   createInitialGameState,
+  firstWinProgress,
   fireStaff as fireStaffAction,
   hireStaff as hireStaffAction,
   issuePressRelease as issuePressReleaseAction,
@@ -17,6 +18,11 @@ import {
   type ActionResult,
 } from "@localmanager/sim";
 import { create } from "zustand";
+
+type FirstWinFlags = {
+  eventToast: boolean;
+  cycleToast: boolean;
+};
 
 export type Screen = "auth" | "menu" | "setup" | "game" | "gameover";
 
@@ -45,6 +51,9 @@ interface GameStore {
   mapUrl: string | null;
   mapJobPending: boolean;
   errorIt: string | null;
+  toastIt: string | null;
+  firstWinFlags: FirstWinFlags;
+  dismissToast: () => void;
   authenticate: (
     mode: "login" | "register",
     email: string,
@@ -77,6 +86,8 @@ const emptyState = {
   mapUrl: null as string | null,
   mapJobPending: false,
   errorIt: null as string | null,
+  toastIt: null as string | null,
+  firstWinFlags: { eventToast: false, cycleToast: false } as FirstWinFlags,
 };
 
 function readStoredToken(): string | null {
@@ -300,6 +311,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         runId,
         mapUrl: null,
         errorIt: null,
+        toastIt: null,
+        firstWinFlags: { eventToast: false, cycleToast: false },
       });
 
       // Account online: salva run e genera basemap subito alla scelta comune.
@@ -357,8 +370,25 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
     resolveEvent: (eventId, choiceId) => {
       const state = get().state;
-      if (state) apply(resolveEventAction(state, eventId, choiceId));
+      if (!state) return;
+      apply(resolveEventAction(state, eventId, choiceId));
+      const next = get().state;
+      const flags = get().firstWinFlags;
+      if (
+        next &&
+        !flags.eventToast &&
+        firstWinProgress(next).steps.some(
+          (step) => step.id === "resolve_event" && step.done,
+        )
+      ) {
+        set({
+          toastIt: "Primo evento gestito",
+          firstWinFlags: { ...flags, eventToast: true },
+        });
+      }
     },
+
+    dismissToast: () => set({ toastIt: null }),
 
     closeMonth: async () => {
       const current = get().state;
@@ -372,10 +402,20 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ mapJobPending: true });
       try {
         const next = advanceMonth(current);
+        const flags = get().firstWinFlags;
+        const cycleDone =
+          !flags.cycleToast && firstWinProgress(next).complete;
         set({
           state: next,
           screen: next.status === "playing" ? "game" : "gameover",
           errorIt: null,
+          ...(cycleDone
+            ? {
+                toastIt:
+                  "Primo ciclo completo — hai gestito l'evento, avviato un'opera e chiuso il mese",
+                firstWinFlags: { ...flags, cycleToast: true },
+              }
+            : {}),
         });
 
         const { token, runId } = get();
@@ -482,6 +522,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         mapUrl: null,
         mapJobPending: false,
         errorIt: null,
+        toastIt: null,
       });
     },
 

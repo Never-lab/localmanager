@@ -4,7 +4,7 @@ import type {
   StaffRole,
 } from "@localmanager/shared";
 import { LAST_RUN_ID_KEY, useGameStore, type ComuneSeedPayload } from "./store/gameStore";
-import { canCloseMonth, electionForecast, forecastMonthCash } from "@localmanager/sim";
+import { canCloseMonth, electionForecast, firstWinProgress, forecastMonthCash } from "@localmanager/sim";
 import { Icon, type IconName } from "./ui/Icon";
 import {
   loadThemePref,
@@ -576,6 +576,7 @@ function GameScreen() {
   const state = useGameStore((store) => store.state)!;
   const pending = useGameStore((store) => store.mapJobPending);
   const error = useGameStore((store) => store.errorIt);
+  const toast = useGameStore((store) => store.toastIt);
   const {
     startProject,
     hireStaff,
@@ -584,9 +585,11 @@ function GameScreen() {
     issuePressRelease,
     resolveEvent,
     closeMonth,
+    dismissToast,
   } = useGameStore.getState();
   const forecast = electionForecast(state);
   const cashForecast = forecastMonthCash(state);
+  const firstWin = firstWinProgress(state);
   const cashHint =
     cashForecast.net < 0
       ? state.staff.some((m) => m.hired)
@@ -647,6 +650,14 @@ function GameScreen() {
         <div className="desk-main">
           <MapPanel />
 
+          {toast && (
+            <p className="toast-banner" role="status">
+              <span>{toast}</span>
+              <button type="button" className="ghost" onClick={dismissToast}>
+                Chiudi
+              </button>
+            </p>
+          )}
           {error && <p className="error-banner">{error}</p>}
 
           <div className="work-grid">
@@ -664,7 +675,9 @@ function GameScreen() {
                     <div>
                       <strong>{project.nameIt}</strong>
                       <span>
-                        {money.format(project.cost)} · {project.months} mesi
+                        {money.format(project.cost)} · {project.months} mesi ·
+                        cittadini +{project.effects.peopleRep} · politica +
+                        {project.effects.politicalRep}
                       </span>
                     </div>
                     <button
@@ -798,6 +811,21 @@ function GameScreen() {
         </div>
 
         <aside className="desk-side">
+          {!firstWin.complete && (
+            <section className="panel coach-panel">
+              <div className="panel-head">
+                <PanelTitle icon="clipboard">Primi passi</PanelTitle>
+              </div>
+              <ol className="coach-list">
+                {firstWin.steps.map((step) => (
+                  <li key={step.id} data-done={step.done ? "1" : "0"}>
+                    <span aria-hidden="true">{step.done ? "✓" : "○"}</span>
+                    {step.labelIt}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-head">
               <PanelTitle icon="wallet">Cassa</PanelTitle>
