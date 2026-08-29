@@ -170,16 +170,38 @@ describe("game store", () => {
     savedState.month = 7;
     localStorage.setItem("localmanager:lastRunId", "run-7");
     useGameStore.setState({ screen: "menu", token: "token" });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ runId: "run-7", state: savedState, updatedAt: "" }),
-        { status: 200 },
-      ),
-    );
+    URL.createObjectURL = vi.fn(() => "blob:resume");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ runId: "run-7", state: savedState, updatedAt: "" }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get(name: string) {
+            if (name.toLowerCase() === "x-map-version") return "1";
+            return null;
+          },
+        },
+        async blob() {
+          return new Blob([Uint8Array.from([137, 80, 78, 71])]);
+        },
+      } as Response);
 
     await useGameStore.getState().resumeGame();
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/saves/run-7", {
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, "/api/saves/run-7", {
+      headers: {
+        authorization: "Bearer token",
+        "content-type": "application/json",
+      },
+    });
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, "/api/runs/run-7/map", {
       headers: {
         authorization: "Bearer token",
         "content-type": "application/json",
@@ -189,6 +211,44 @@ describe("game store", () => {
       screen: "game",
       runId: "run-7",
       state: { month: 7 },
+      mapUrl: "blob:resume",
+    });
+  });
+
+  it("persists the auth token and clears it on logout", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ token: "tok-persist" }), { status: 200 }),
+    );
+
+    await useGameStore.getState().authenticate("login", "a@b.it", "password1");
+
+    expect(localStorage.getItem("localmanager:token")).toBe("tok-persist");
+    expect(useGameStore.getState().token).toBe("tok-persist");
+
+    useGameStore.getState().reset();
+
+    expect(localStorage.getItem("localmanager:token")).toBeNull();
+    expect(useGameStore.getState()).toMatchObject({
+      token: null,
+      screen: "auth",
+    });
+  });
+
+  it("expires the session on 401 while resuming", async () => {
+    localStorage.setItem("localmanager:token", "stale");
+    localStorage.setItem("localmanager:lastRunId", "run-9");
+    useGameStore.setState({ screen: "menu", token: "stale" });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 401 }),
+    );
+
+    await useGameStore.getState().resumeGame();
+
+    expect(localStorage.getItem("localmanager:token")).toBeNull();
+    expect(useGameStore.getState()).toMatchObject({
+      token: null,
+      screen: "auth",
+      errorIt: "Sessione scaduta. Accedi di nuovo.",
     });
   });
 
