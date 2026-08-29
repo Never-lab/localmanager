@@ -56,6 +56,7 @@ def render_basemap(
     import prettymaps
 
     # Inquadramento esplicito: stesso radius/center a ogni regen.
+    # Niente bbox_inches="tight": taglia il frame e rompe latlon→pixel.
     prettymaps.plot(
         (center["lat"], center["lon"]),
         radius=radius_m,
@@ -63,7 +64,7 @@ def render_basemap(
     )
     fig = plt.gcf()
     fig.set_size_inches(10, 10)
-    plt.savefig(output, format="png", dpi=180, bbox_inches="tight", pad_inches=0)
+    plt.savefig(output, format="png", dpi=180, pad_inches=0)
     plt.close()
     # osm_query resta nel job per audit / fallback futuri
     _ = osm_query
