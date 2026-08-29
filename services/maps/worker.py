@@ -127,6 +127,12 @@ def process_job(
 
         # Cache basemap per revisione: overlay successivo = solo composite.
         if not _basemap_cache_usable(cache_path):
+            logging.info(
+                "Rendering basemap run=%s revision=%s query=%s",
+                job.get("runId"),
+                revision,
+                osm_query,
+            )
             render_basemap(osm_query, center, radius_m, str(cache_path))
         composite_overlay(
             str(cache_path),
@@ -154,6 +160,16 @@ def main() -> None:
     worker_key = os.environ.get("MAPS_WORKER_KEY")
     if not worker_key:
         raise RuntimeError("MAPS_WORKER_KEY is required")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    logging.info(
+        "Maps worker ready (fixture=%s) polling %s",
+        os.getenv("LOCALMANAGER_MAPS_FIXTURE", "0"),
+        API_URL,
+    )
 
     with requests.Session() as session:
         while True:
