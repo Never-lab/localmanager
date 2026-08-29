@@ -16,6 +16,7 @@ from render import composite_overlay, render_basemap
 
 POLL_SECONDS = 3
 DATA_DIR = Path(os.getenv("LOCALMANAGER_MAPS_DATA_DIR", "/data/maps"))
+STUB_BASEMAP = Path(__file__).resolve().parent / "fixtures" / "basemap_stub.png"
 
 
 def normalize_api_url(value: str) -> str:
@@ -98,6 +99,17 @@ def _require_geo(job_input: dict[str, Any]) -> tuple[str, dict[str, float], floa
     )
 
 
+def _basemap_cache_usable(cache_path: Path) -> bool:
+    """True se la cache è riusabile. In live mode scarta lo stub fixture residuo."""
+    if not cache_path.is_file():
+        return False
+    if os.getenv("LOCALMANAGER_MAPS_FIXTURE", "0") == "1":
+        return True
+    if STUB_BASEMAP.is_file() and cache_path.read_bytes() == STUB_BASEMAP.read_bytes():
+        return False
+    return True
+
+
 def process_job(
     session: requests.Session, worker_key: str, job: dict[str, Any]
 ) -> None:
@@ -114,7 +126,7 @@ def process_job(
         cache_path = run_dir / f"basemap_{_safe_name(revision)}.png"
 
         # Cache basemap per revisione: overlay successivo = solo composite.
-        if not cache_path.is_file():
+        if not _basemap_cache_usable(cache_path):
             render_basemap(osm_query, center, radius_m, str(cache_path))
         composite_overlay(
             str(cache_path),

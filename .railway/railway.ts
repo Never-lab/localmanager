@@ -42,8 +42,8 @@ export default defineRailway(() => {
       // Public HTTPS origin of web-api (no trailing slash), e.g. https://….up.railway.app
       LOCALMANAGER_API_URL: `https://${webApi.env.RAILWAY_PUBLIC_DOMAIN}`,
       MAPS_WORKER_KEY: preserve(),
-      // Stub PNG in staging; remove or set "0" for real prettymaps
-      LOCALMANAGER_MAPS_FIXTURE: "1",
+      // Live prettymaps (fixture=1 only for CI / local unittest)
+      LOCALMANAGER_MAPS_FIXTURE: "0",
     },
   });
 

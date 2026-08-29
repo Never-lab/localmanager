@@ -52,6 +52,9 @@ def render_basemap(
             source.convert("RGB").copy().save(output, format="PNG")
         return
 
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import prettymaps
 

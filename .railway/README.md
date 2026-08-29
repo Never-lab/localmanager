@@ -36,7 +36,7 @@ Variables:
 
 - `LOCALMANAGER_API_URL` → public URL of `web-api` **with** `https://`, no trailing slash
 - `MAPS_WORKER_KEY` → **same** as `web-api`
-- `LOCALMANAGER_MAPS_FIXTURE` → `1` for staging stub maps
+- `LOCALMANAGER_MAPS_FIXTURE` → `0` for real prettymaps (`1` only for CI / local tests)
 
 Do **not** point any “Config as Code file” setting at the old `railway.toml` paths.
 

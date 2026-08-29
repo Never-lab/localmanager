@@ -76,6 +76,28 @@ class WorkerTests(unittest.TestCase):
                 render_basemap.assert_not_called()
                 self.assertEqual(composite_overlay.call_count, 2)
 
+    def test_process_job_regenerates_fixture_stub_cache_in_live_mode(self) -> None:
+        """Staging aveva FIXTURE=1: la cache resta la croce stub anche dopo live."""
+        stub = Path(__file__).resolve().parent / "fixtures" / "basemap_stub.png"
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory, "run", "basemap_2026-08-29.png")
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(stub.read_bytes())
+            with (
+                patch.dict("os.environ", {"LOCALMANAGER_MAPS_FIXTURE": "0"}, clear=False),
+                patch.object(worker, "DATA_DIR", Path(directory)),
+                patch.object(worker, "render_basemap") as render_basemap,
+                patch.object(worker, "composite_overlay"),
+                patch.object(worker, "complete_job", return_value=1),
+                patch.object(Path, "replace"),
+            ):
+                worker.process_job(
+                    MagicMock(),
+                    "key",
+                    {"id": 1, "runId": "run", "input": SAMPLE_INPUT},
+                )
+                render_basemap.assert_called_once()
+
     def test_rename_failure_after_completion_does_not_fail_ready_job(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with (
