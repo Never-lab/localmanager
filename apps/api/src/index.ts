@@ -325,8 +325,9 @@ async function main(): Promise<void> {
     webDist: process.env.WEB_DIST,
   });
   const port = Number(process.env.PORT ?? 3001);
-  server.listen(port, () => {
-    console.log(`LocalManager API listening on port ${port}`);
+  // Railway proxies to PORT; bind all interfaces (default can miss the edge proxy).
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`LocalManager API listening on 0.0.0.0:${port}`);
   });
 }
 
