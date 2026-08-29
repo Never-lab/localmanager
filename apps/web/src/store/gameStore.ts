@@ -122,7 +122,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({
         screen: "game",
         state: createInitialGameState({ mayorName: name }),
-        runId: get().token ? `run-${Date.now()}` : null,
+        runId: get().token ? crypto.randomUUID() : null,
         mapUrl: null,
         errorIt: null,
       });
@@ -200,6 +200,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         for (let attempt = 0; attempt < 20; attempt += 1) {
           const mapResponse = await fetch(
             `/api/runs/${encodeURIComponent(runId)}/map`,
+            { headers: authorization(token) },
           );
           if (mapResponse.status === 200) {
             const mapVersion = Number(

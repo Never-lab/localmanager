@@ -18,6 +18,19 @@ describe("game store", () => {
     expect(store.state?.month).toBe(1);
   });
 
+  it("uses a UUID for authenticated run IDs", () => {
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      "123e4567-e89b-42d3-a456-426614174000",
+    );
+    useGameStore.setState({ token: "token" });
+
+    useGameStore.getState().startGame("Ada Rossi");
+
+    expect(useGameStore.getState().runId).toBe(
+      "123e4567-e89b-42d3-a456-426614174000",
+    );
+  });
+
   it("applies simulation actions to the current game", () => {
     useGameStore.getState().startGame("Ada Rossi");
     const openingCash = useGameStore.getState().state!.cash;
@@ -117,6 +130,12 @@ describe("game store", () => {
     await useGameStore.getState().closeMonth();
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy).toHaveBeenNthCalledWith(3, "/api/runs/run-1/map", {
+      headers: {
+        authorization: "Bearer token",
+        "content-type": "application/json",
+      },
+    });
     expect(useGameStore.getState().mapUrl).toBe("blob:mappa");
     expect(localStorage.getItem("localmanager:lastRunId")).toBe("run-1");
     expect(useGameStore.getState().state?.overlay).toMatchObject({

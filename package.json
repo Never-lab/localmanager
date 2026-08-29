@@ -4,7 +4,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "engines": { "node": ">=20.19.0" },
   "scripts": {
-    "test": "npm run test -w @localmanager/sim && npm run test -w @localmanager/api && npm run test -w @localmanager/web",
+    "test": "npm run test -w @localmanager/sim && npm run test -w @localmanager/api && npm run test -w @localmanager/web && npm run test:maps",
+    "test:maps": "python -m unittest discover -s services/maps -p test_worker.py",
     "build": "npm run build -w @localmanager/shared && npm run build -w @localmanager/sim && npm run build -w @localmanager/web && npm run build -w @localmanager/api",
     "dev:web": "npm run dev -w @localmanager/web",
     "dev:api": "npm run dev -w @localmanager/api",

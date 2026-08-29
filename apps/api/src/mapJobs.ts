@@ -184,7 +184,19 @@ export async function completeMapJob(
   }
 }
 
-export async function getMapState(pool: Database, runId: string) {
+export async function getMapState(
+  pool: Database,
+  runId: string,
+  userId: string,
+) {
+  const ownership = await pool.query(
+    "SELECT 1 FROM saves WHERE run_id = $1 AND user_id = $2",
+    [runId, userId],
+  );
+  if (ownership.rowCount !== 1) {
+    throw new MapJobOwnershipError("Run belongs to another user");
+  }
+
   const jobResult = await pool.query<{
     status: string;
     map_version: number | null;

@@ -132,22 +132,10 @@ export function createApiServer(pool: Database, config: ApiConfig) {
 
       if (method === "GET" && path === "/api/health") {
         await pool.query("SELECT 1");
-        const maps = await pool.query(
-          `SELECT 1
-           WHERE EXISTS (
-             SELECT 1 FROM map_artifacts
-             WHERE created_at > NOW() - INTERVAL '24 hours'
-           ) OR EXISTS (
-             SELECT 1 FROM map_jobs
-             WHERE status = 'running'
-               AND created_at > NOW() - INTERVAL '24 hours'
-           )
-           LIMIT 1`,
-        );
         return sendJson(response, 200, {
           ok: true,
           storage: "postgres",
-          maps: maps.rowCount ? "ok" : "unconfigured",
+          maps: config.workerKey ? "ok" : "unconfigured",
         });
       }
 
@@ -220,16 +208,24 @@ export function createApiServer(pool: Database, config: ApiConfig) {
 
       const mapMatch = path.match(/^\/api\/runs\/([^/]+)\/map$/);
       if (mapMatch && method === "GET") {
+        const userId = await requireUser(
+          request,
+          response,
+          pool,
+          config.secret,
+        );
+        if (!userId) return;
         const state = await getMapState(
           pool,
           decodeURIComponent(mapMatch[1]),
+          userId,
         );
         if (!state) return sendJson(response, 404, { error: "Map job not found" });
         if (state.content) {
           response.writeHead(200, {
             "content-type": "image/png",
             "content-length": state.content.length,
-            "cache-control": "private, max-age=31536000, immutable",
+            "cache-control": "private, no-store",
             "x-map-version": String(state.mapVersion),
           });
           return response.end(state.content);
