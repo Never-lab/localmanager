@@ -26,6 +26,11 @@ Generate long, independent random values for `LOCALMANAGER_SECRET` and
 Set `LOCALMANAGER_API_URL` on `maps` to the public Railway URL of `web-api`
 without a trailing slash. Railway supplies `PORT` to `web-api`.
 
+The `web-api` Railway build runs `npm run build` at the repository root, which
+builds shared, sim, web, and API in order so `apps/web/dist` exists. Its start
+command runs the API, which serves that directory and supports SPA routes.
+Set `WEB_DIST` only when the built web directory is in a nonstandard location.
+
 Map PNGs are stored in Postgres as `BYTEA` in `map_artifacts.content` and
 streamed by `GET /api/runs/:id/map`, so v0 does not need a Railway volume.
 The API applies `apps/api/src/schema.sql` at startup.

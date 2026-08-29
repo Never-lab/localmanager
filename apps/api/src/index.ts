@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { dirname, extname, resolve, sep } from "node:path";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { authenticate, login, register } from "./auth.js";
@@ -19,11 +20,63 @@ import { getSave, putSave } from "./saves.js";
 interface ApiConfig {
   secret: string;
   workerKey?: string;
+  webDist?: string;
 }
+
+const defaultWebDist = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../web/dist",
+);
+
+const contentTypes: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
+}
+
+async function sendFile(response: ServerResponse, filePath: string): Promise<boolean> {
+  try {
+    const content = await readFile(filePath);
+    response.writeHead(200, {
+      "content-type": contentTypes[extname(filePath).toLowerCase()] ??
+        "application/octet-stream",
+      "content-length": content.length,
+    });
+    response.end(content);
+    return true;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "EISDIR")
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function serveWeb(
+  response: ServerResponse,
+  path: string,
+  webDist: string,
+): Promise<boolean> {
+  const assetPath = resolve(webDist, `.${decodeURIComponent(path)}`);
+  const isInsideWebDist =
+    assetPath === webDist || assetPath.startsWith(`${webDist}${sep}`);
+  if (isInsideWebDist && await sendFile(response, assetPath)) return true;
+  return sendFile(response, resolve(webDist, "index.html"));
 }
 
 async function readBody(request: IncomingMessage): Promise<Buffer> {
@@ -228,6 +281,10 @@ export function createApiServer(pool: Database, config: ApiConfig) {
           : sendJson(response, 200, { status: "ready", mapVersion });
       }
 
+      if (method === "GET" && path !== "/api" && !path.startsWith("/api/")) {
+        if (await serveWeb(response, path, config.webDist ?? defaultWebDist)) return;
+      }
+
       sendJson(response, 404, { error: "Not found" });
     } catch (error) {
       const pgCode =
@@ -269,6 +326,7 @@ async function main(): Promise<void> {
   const server = createApiServer(pool, {
     secret,
     workerKey: process.env.MAPS_WORKER_KEY,
+    webDist: process.env.WEB_DIST,
   });
   const port = Number(process.env.PORT ?? 3001);
   server.listen(port, () => {
