@@ -1,0 +1,12 @@
+﻿node_modules/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+coverage/
+*.tsbuildinfo
+.worktrees/
+.superpowers/
+data/**/generated/
+data/**/generated/**/*.png

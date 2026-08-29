@@ -1,0 +1,13 @@
+{
+  "comuneId": "069084",
+  "name": "Santa Maria Imbaro",
+  "province": "CH",
+  "region": "Abruzzo",
+  "cadastralCode": "I244",
+  "areaKm2": 5.71,
+  "osmQuery": "Santa Maria Imbaro, Abruzzo, Italy",
+  "center": { "lat": 42.2167, "lon": 14.45 },
+  "basemapRevision": "2026-08-29",
+  "snapshotDate": "2026-01-01",
+  "sources": ["SOURCES.md"]
+}

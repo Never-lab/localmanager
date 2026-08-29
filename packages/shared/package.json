@@ -1,0 +1,14 @@
+{
+  "name": "@localmanager/shared",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

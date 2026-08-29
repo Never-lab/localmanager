@@ -1,0 +1,7 @@
+{
+  "slots": [
+    { "id": "centro", "labelIt": "Centro", "offset": [0.0, 0.0], "radiusM": 120 },
+    { "id": "zona_nord", "labelIt": "Zona nord", "offset": [0.0, 0.004], "radiusM": 100 },
+    { "id": "viabilita_est", "labelIt": "Viabilità est", "offset": [0.005, 0.0], "radiusM": 140 }
+  ]
+}
