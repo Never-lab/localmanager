@@ -6,6 +6,12 @@ import type {
 } from "@localmanager/shared";
 import { LAST_RUN_ID_KEY, useGameStore } from "./store/gameStore";
 import { canCloseMonth, electionForecast } from "@localmanager/sim";
+import { Icon, type IconName } from "./ui/Icon";
+import {
+  loadThemePref,
+  saveThemePref,
+  type Theme,
+} from "./ui/theme";
 import "./styles.css";
 
 const money = new Intl.NumberFormat("it-IT", {
@@ -43,6 +49,34 @@ const slotPositions: Record<MapSlotId, [number, number]> = {
   viabilita_est: [69, 58],
 };
 
+const THEME_CYCLE: Theme[] = ["system", "light", "dark"];
+const THEME_LABELS: Record<Theme, string> = {
+  light: "Chiaro",
+  dark: "Scuro",
+  system: "Sistema",
+};
+
+function ThemeToggle() {
+  const [pref, setPref] = useState<Theme>(loadThemePref);
+  const cycle = () => {
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(pref) + 1) % THEME_CYCLE.length];
+    saveThemePref(next);
+    setPref(next);
+  };
+  const resolved =
+    pref === "dark" ||
+    (pref === "system" &&
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+  return (
+    <button type="button" className="theme-toggle" onClick={cycle}>
+      <Icon name={resolved ? "sun" : "moon"} size={18} />
+      {THEME_LABELS[pref]}
+    </button>
+  );
+}
+
 function Frame({ children }: { children: ReactNode }) {
   return (
     <main className="app-shell">
@@ -52,6 +86,21 @@ function Frame({ children }: { children: ReactNode }) {
         previsioni ufficiali del Comune.
       </footer>
     </main>
+  );
+}
+
+function PanelTitle({
+  icon,
+  children,
+}: {
+  icon: IconName;
+  children: ReactNode;
+}) {
+  return (
+    <h2 className="panel-title">
+      <Icon name={icon} size={16} />
+      {children}
+    </h2>
   );
 }
 
@@ -70,10 +119,11 @@ function AuthScreen() {
 
   return (
     <Frame>
-      <section className="entry-card">
-        <div className="civic-mark" aria-hidden="true">
-          LM
+      <section className="shell-entry">
+        <div className="theme-row">
+          <ThemeToggle />
         </div>
+        <p className="brand-mark">LocalManager</p>
         <p className="eyebrow">Comune di Santa Maria Imbaro</p>
         <h1>Entra in municipio</h1>
         <p className="lead">
@@ -101,11 +151,13 @@ function AuthScreen() {
           </label>
           {error && <p className="error-note">{error}</p>}
           <button className="primary" type="submit">
+            <Icon name="login" weight="bold" size={18} />
             {mode === "login" ? "Accedi" : "Crea account"}
           </button>
         </form>
         <button
-          className="text-button"
+          className="ghost"
+          type="button"
           onClick={() => setMode(mode === "login" ? "register" : "login")}
         >
           {mode === "login"
@@ -113,9 +165,12 @@ function AuthScreen() {
             : "Hai già un account? Accedi"}
         </button>
         <div className="or-rule">oppure</div>
-        <button className="secondary" onClick={continueAsGuest}>
-          Continua come ospite
-        </button>
+        <div className="cta-stack">
+          <button className="secondary" type="button" onClick={continueAsGuest}>
+            <Icon name="guest" weight="bold" size={18} />
+            Continua come ospite
+          </button>
+        </div>
         <p className="small-note">
           In modalità ospite la partita resta su questo dispositivo.
         </p>
@@ -133,33 +188,43 @@ function MenuScreen() {
   const savedRunId = token ? localStorage.getItem(LAST_RUN_ID_KEY) : null;
   return (
     <Frame>
-      <section className="menu-card">
+      <section className="shell-entry">
+        <div className="theme-row">
+          <ThemeToggle />
+        </div>
+        <p className="brand-mark">LocalManager</p>
         <p className="eyebrow">Palazzo comunale</p>
-        <h1>LocalManager</h1>
-        <p className="lead">
-          Governa un piccolo Comune abruzzese, un mese alla volta.
-        </p>
-        <button className="primary large" onClick={goToSetup}>
-          Nuovo mandato
-        </button>
-        <button
-          className="secondary"
-          disabled={!token || !savedRunId}
-          title={
-            !token
-              ? "Accedi per usare i salvataggi online."
-              : savedRunId
-                ? "Riprendi il salvataggio online."
-                : "Nessun salvataggio online disponibile su questo dispositivo."
-          }
-          onClick={() => void resumeGame()}
-        >
-          Riprendi partita
-        </button>
+        <h1>Governa un piccolo Comune abruzzese</h1>
+        <p className="lead">un mese alla volta.</p>
+        <div className="cta-stack">
+          <button className="primary large" type="button" onClick={goToSetup}>
+            <Icon name="play" weight="bold" size={18} />
+            Nuovo mandato
+          </button>
+          <button
+            className="secondary"
+            type="button"
+            disabled={!token || !savedRunId}
+            title={
+              !token
+                ? "Accedi per usare i salvataggi online."
+                : savedRunId
+                  ? "Riprendi il salvataggio online."
+                  : "Nessun salvataggio online disponibile su questo dispositivo."
+            }
+            onClick={() => void resumeGame()}
+          >
+            <Icon name="clipboard" weight="bold" size={18} />
+            Riprendi partita
+          </button>
+        </div>
         {error && <p className="error-note">{error}</p>}
-        <button className="text-button" onClick={reset}>
-          {token ? "Esci dall'account" : "Torna all'accesso"}
-        </button>
+        <div className="nav-links">
+          <button className="nav-link" type="button" onClick={reset}>
+            <Icon name="logout" size={20} />
+            {token ? "Esci dall'account" : "Torna all'accesso"}
+          </button>
+        </div>
       </section>
     </Frame>
   );
@@ -175,7 +240,10 @@ function SetupScreen() {
   };
   return (
     <Frame>
-      <section className="setup-card">
+      <section className="shell-entry">
+        <div className="theme-row">
+          <ThemeToggle />
+        </div>
         <p className="eyebrow">Insediamento</p>
         <h1>Prepara la fascia tricolore</h1>
         <form onSubmit={submit}>
@@ -200,6 +268,7 @@ function SetupScreen() {
           </fieldset>
           {error && <p className="error-note">{error}</p>}
           <button className="primary" type="submit">
+            <Icon name="building" weight="bold" size={18} />
             Apri il municipio
           </button>
         </form>
@@ -225,12 +294,9 @@ function MapPanel() {
   const mapUrl = useGameStore((store) => store.mapUrl);
   const pending = useGameStore((store) => store.mapJobPending);
   return (
-    <section className="map-card">
-      <header className="panel-heading">
-        <div>
-          <p className="eyebrow">Territorio</p>
-          <h2>Mappa degli interventi</h2>
-        </div>
+    <section className="panel">
+      <header className="panel-head">
+        <PanelTitle icon="map">Mappa degli interventi</PanelTitle>
         <span className={`map-status ${pending ? "pending" : ""}`}>
           {pending
             ? "Aggiornamento in corso"
@@ -289,39 +355,213 @@ function GameScreen() {
 
   return (
     <Frame>
-      <header className="game-header">
+      <header className="sticky">
         <div>
           <p className="eyebrow">Comune di Santa Maria Imbaro</p>
           <h1>Scrivania del sindaco</h1>
         </div>
-        <div className="term">
-          <span>Mandato di {state.mayorName}</span>
-          <strong>
-            Mese {state.month} / {state.mandateMonths}
-          </strong>
-          <span>
-            Verso le urne: {forecastLabels[forecast.band]} (
-            {forecast.margin > 0 ? "+" : ""}
-            {Math.round(forecast.margin)})
-          </span>
+        <div className="sticky-actions">
+          <div className="sticky-meta">
+            <span>Mandato di {state.mayorName}</span>
+            <p className="cash">{money.format(state.cash)}</p>
+            <span>
+              Mese {state.month} / {state.mandateMonths}
+            </span>
+            <span className="chip">
+              <Icon name="calendar" size={12} />
+              {forecastLabels[forecast.band]} (
+              {forecast.margin > 0 ? "+" : ""}
+              {Math.round(forecast.margin)})
+            </span>
+          </div>
+          <ThemeToggle />
+          <div className="close-stack">
+            <button
+              className="primary large"
+              type="button"
+              disabled={pending || !monthClosable}
+              title={closeBlockedReason}
+              onClick={() => void closeMonth()}
+            >
+              <Icon name="calendar" weight="bold" size={18} />
+              {pending ? "Aggiorno la mappa…" : "Chiudi mese"}
+            </button>
+            {(pending || !monthClosable) && (
+              <p className="close-hint">{closeBlockedReason}</p>
+            )}
+          </div>
         </div>
       </header>
 
-      <div className="desk-layout">
-        <MapPanel />
-        <aside className="dashboard">
-          <section className="paper-card treasury">
-            <p className="eyebrow">Ragioneria</p>
-            <h2>{money.format(state.cash)}</h2>
-            <span>Cassa disponibile</span>
+      <div className="desk-body">
+        <div className="desk-main">
+          <MapPanel />
+
+          {error && <p className="error-banner">{error}</p>}
+
+          <div className="work-grid">
+            <section className="panel projects">
+              <div className="panel-head">
+                <PanelTitle icon="document">Fascicoli dei progetti</PanelTitle>
+                <span className="panel-head-meta">
+                  {state.activeProjects.length} in corso
+                </span>
+              </div>
+              {projects.map((project) => {
+                const disabled = state.cash < project.cost;
+                return (
+                  <div className="deal-row" key={project.id}>
+                    <div>
+                      <strong>{project.name}</strong>
+                      <span>
+                        {money.format(project.cost)} · {project.months} mesi
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      title={
+                        disabled
+                          ? "Non c'è abbastanza cassa: attendi nuove entrate o chiedi fondi."
+                          : `Avvia ${project.name}`
+                      }
+                      onClick={() => startProject(project.id)}
+                    >
+                      <Icon name="play" size={16} />
+                      Avvia {project.name}
+                    </button>
+                  </div>
+                );
+              })}
+              {state.activeProjects.map((project) => (
+                <p
+                  className="active-file"
+                  key={`${project.templateId}-${project.slotId}`}
+                >
+                  {projects.find((item) => item.id === project.templateId)?.name}
+                  : restano {project.monthsRemaining} mesi
+                </p>
+              ))}
+            </section>
+
+            <section className="panel">
+              <div className="panel-head">
+                <PanelTitle icon="people">Personale</PanelTitle>
+              </div>
+              {state.staff.map((member) => (
+                <div className="deal-row" key={member.role}>
+                  <div>
+                    <strong>{roleNames[member.role]}</strong>
+                    <span>{money.format(member.monthlyCost)}/mese</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={member.hired ? "quiet-danger" : ""}
+                    onClick={() =>
+                      member.hired
+                        ? fireStaff(member.role)
+                        : hireStaff(member.role)
+                    }
+                  >
+                    <Icon name={member.hired ? "guest" : "userPlus"} size={16} />
+                    {member.hired ? "Congeda" : "Assumi"}
+                  </button>
+                </div>
+              ))}
+            </section>
+
+            <section className="panel">
+              <div className="panel-head">
+                <PanelTitle icon="megaphone">Provincia e stampa</PanelTitle>
+              </div>
+              <div className="button-stack">
+                <button
+                  type="button"
+                  disabled={Boolean(state.provinceRequest)}
+                  title={
+                    state.provinceRequest
+                      ? "Una richiesta è già in esame: attendi la risposta."
+                      : "Richiedi un contributo di € 100.000 alla Provincia."
+                  }
+                  onClick={() => requestProvinceFunds(100_000)}
+                >
+                  <Icon name="money" size={16} />
+                  Chiedi fondi alla Provincia
+                </button>
+                <button
+                  type="button"
+                  onClick={() => issuePressRelease("people")}
+                >
+                  <Icon name="megaphone" size={16} />
+                  Comunicato ai cittadini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => issuePressRelease("political")}
+                >
+                  <Icon name="document" size={16} />
+                  Nota alla maggioranza
+                </button>
+              </div>
+            </section>
+
+            <section className="panel events-panel">
+              <div className="panel-head">
+                <PanelTitle icon="clipboard">Eventi</PanelTitle>
+              </div>
+              {state.pendingEvents.length === 0 ? (
+                <p>Nessun evento da gestire — puoi chiudere il mese.</p>
+              ) : (
+                state.pendingEvents.map((event) => (
+                  <div key={event.id} className="event-card">
+                    <strong>{event.titleIt}</strong>
+                    <p>{event.bodyIt}</p>
+                    <div className="button-pair">
+                      {event.choices.map((choice) => {
+                        const needsCash =
+                          choice.requiresCash !== undefined &&
+                          state.cash < choice.requiresCash;
+                        return (
+                          <button
+                            type="button"
+                            key={choice.id}
+                            disabled={needsCash}
+                            title={
+                              needsCash
+                                ? `Servono almeno ${money.format(choice.requiresCash!)} in cassa.`
+                                : choice.labelIt
+                            }
+                            onClick={() => resolveEvent(event.id, choice.id)}
+                          >
+                            {choice.labelIt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+        </div>
+
+        <aside className="desk-side">
+          <section className="panel">
+            <div className="panel-head">
+              <PanelTitle icon="wallet">Cassa</PanelTitle>
+            </div>
+            <p className="cash">{money.format(state.cash)}</p>
+            <span className="eyebrow">Disponibile</span>
           </section>
-          <section className="paper-card">
-            <h3>Clima del Comune</h3>
+          <section className="panel">
+            <div className="panel-head">
+              <PanelTitle icon="people">Clima del Comune</PanelTitle>
+            </div>
             <Meter label="Fiducia dei cittadini" value={state.peopleRep} />
             <Meter label="Sostegno politico" value={state.politicalRep} />
             <Meter label="Pressione del rivale" value={state.rival.heat} />
           </section>
-          <section className="paper-card facts">
+          <section className="panel facts">
             <div>
               <span>Residenti</span>
               <strong>{state.population.toLocaleString("it-IT")}</strong>
@@ -331,159 +571,27 @@ function GameScreen() {
               <strong>{state.meanAge.toFixed(1)}</strong>
             </div>
           </section>
-        </aside>
-      </div>
-
-      {error && <p className="error-banner">{error}</p>}
-
-      <div className="work-grid">
-        <section className="paper-card projects">
-          <div className="section-title">
-            <h2>Fascicoli dei progetti</h2>
-            <span>{state.activeProjects.length} in corso</span>
-          </div>
-          {projects.map((project) => {
-            const disabled = state.cash < project.cost;
-            return (
-              <div className="project-row" key={project.id}>
-                <div>
-                  <strong>{project.name}</strong>
-                  <span>
-                    {money.format(project.cost)} · {project.months} mesi
-                  </span>
-                </div>
-                <button
-                  disabled={disabled}
-                  title={
-                    disabled
-                      ? "Non c'è abbastanza cassa: attendi nuove entrate o chiedi fondi."
-                      : `Avvia ${project.name}`
-                  }
-                  onClick={() => startProject(project.id)}
-                >
-                  Avvia {project.name}
-                </button>
-              </div>
-            );
-          })}
-          {state.activeProjects.map((project) => (
-            <p className="active-file" key={`${project.templateId}-${project.slotId}`}>
-              {projects.find((item) => item.id === project.templateId)?.name}:
-              restano {project.monthsRemaining} mesi
-            </p>
-          ))}
-        </section>
-
-        <section className="paper-card">
-          <h2>Personale</h2>
-          {state.staff.map((member) => (
-            <div className="staff-row" key={member.role}>
-              <div>
-                <strong>{roleNames[member.role]}</strong>
-                <span>{money.format(member.monthlyCost)}/mese</span>
-              </div>
-              <button
-                className={member.hired ? "quiet-danger" : ""}
-                onClick={() =>
-                  member.hired
-                    ? fireStaff(member.role)
-                    : hireStaff(member.role)
-                }
-              >
-                {member.hired ? "Congeda" : "Assumi"}
-              </button>
+          <section className="panel">
+            <div className="panel-head">
+              <PanelTitle icon="clipboard">Registro di giunta</PanelTitle>
             </div>
-          ))}
-        </section>
-
-        <section className="paper-card">
-          <h2>Provincia e stampa</h2>
-          <div className="button-stack">
-            <button
-              disabled={Boolean(state.provinceRequest)}
-              title={
-                state.provinceRequest
-                  ? "Una richiesta è già in esame: attendi la risposta."
-                  : "Richiedi un contributo di € 100.000 alla Provincia."
-              }
-              onClick={() => requestProvinceFunds(100_000)}
-            >
-              Chiedi fondi alla Provincia
-            </button>
-            <button onClick={() => issuePressRelease("people")}>
-              Comunicato ai cittadini
-            </button>
-            <button onClick={() => issuePressRelease("political")}>
-              Nota alla maggioranza
-            </button>
-          </div>
-        </section>
-
-        <section className="paper-card rival-card">
-          <h2>Eventi</h2>
-          {state.pendingEvents.length === 0 ? (
-            <p>Nessun evento da gestire — puoi chiudere il mese.</p>
-          ) : (
-            state.pendingEvents.map((event) => (
-              <div key={event.id} className="event-card">
-                <strong>{event.titleIt}</strong>
-                <p>{event.bodyIt}</p>
-                <div className="button-pair">
-                  {event.choices.map((choice) => {
-                    const needsCash =
-                      choice.requiresCash !== undefined &&
-                      state.cash < choice.requiresCash;
-                    return (
-                      <button
-                        key={choice.id}
-                        disabled={needsCash}
-                        title={
-                          needsCash
-                            ? `Servono almeno ${money.format(choice.requiresCash!)} in cassa.`
-                            : choice.labelIt
-                        }
-                        onClick={() => resolveEvent(event.id, choice.id)}
-                      >
-                        {choice.labelIt}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
-          )}
-        </section>
-      </div>
-
-      <section className="paper-card log-card">
-        <h2>Registro di giunta</h2>
-        {state.log.length ? (
-          <ol>
-            {[...state.log].reverse().slice(0, 6).map((entry, index) => (
-              <li key={`${entry.month}-${index}`}>
-                <span>Mese {entry.month}</span>
-                {entry.textIt}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>Il registro è pronto per il primo mese di attività.</p>
-        )}
-      </section>
-
-      <div className="month-close">
-        <div>
-          <strong>Pronto per deliberare?</strong>
-          <span>Entrate, costi e progetti avanzeranno di un mese.</span>
-        </div>
-        <button
-          className="primary large"
-          disabled={pending || !monthClosable}
-          title={closeBlockedReason}
-          onClick={() => void closeMonth()}
-        >
-          {pending ? "Aggiorno la mappa…" : "Chiudi mese"}
-        </button>
+            {state.log.length ? (
+              <ol className="log-list">
+                {[...state.log]
+                  .reverse()
+                  .slice(0, 6)
+                  .map((entry, index) => (
+                    <li key={`${entry.month}-${index}`}>
+                      <span>Mese {entry.month}</span>
+                      {entry.textIt}
+                    </li>
+                  ))}
+              </ol>
+            ) : (
+              <p>Il registro è pronto per il primo mese di attività.</p>
+            )}
+          </section>
+        </aside>
       </div>
     </Frame>
   );
@@ -495,7 +603,7 @@ function GameOverScreen() {
   const won = state.status === "won";
   return (
     <Frame>
-      <section className="result-card">
+      <section className="shell-entry">
         <p className="eyebrow">Elezioni comunali</p>
         <h1>{won ? "Mandato rinnovato" : "Il mandato termina qui"}</h1>
         <p className="lead">
@@ -508,7 +616,8 @@ function GameOverScreen() {
           <span>Politica: {Math.round(state.politicalRep)}</span>
           <span>Rivale: {Math.round(state.rival.heat)}</span>
         </div>
-        <button className="primary" onClick={returnToMenu}>
+        <button className="primary" type="button" onClick={returnToMenu}>
+          <Icon name="building" weight="bold" size={18} />
           Torna al municipio
         </button>
       </section>
