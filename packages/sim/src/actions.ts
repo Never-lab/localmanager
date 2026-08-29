@@ -3,11 +3,19 @@ import type {
   ProjectTemplateId,
   StaffRole,
 } from "@localmanager/shared";
-import { CLAMP } from "./config.js";
+import {
+  CLAMP,
+  PRESS_DELTAS,
+  TECHNICIAN_MONTH_CUT,
+} from "./config.js";
 
 export type ActionResult =
   | { ok: true; state: GameState }
   | { ok: false; errorIt: string };
+
+function isHired(state: GameState, role: StaffRole): boolean {
+  return state.staff.some((member) => member.role === role && member.hired);
+}
 
 export function startProject(
   state: GameState,
@@ -23,6 +31,10 @@ export function startProject(
     return { ok: false, errorIt: "Cassa insufficiente." };
   }
 
+  const monthsRemaining = isHired(state, "technician")
+    ? Math.max(1, template.months - TECHNICIAN_MONTH_CUT)
+    : template.months;
+
   return {
     ok: true,
     state: {
@@ -32,7 +44,7 @@ export function startProject(
         ...state.activeProjects,
         {
           templateId,
-          monthsRemaining: template.months,
+          monthsRemaining,
           slotId: template.slotId,
         },
       ],
@@ -107,14 +119,28 @@ export function issuePressRelease(
   state: GameState,
   tone: "people" | "political",
 ): ActionResult {
+  if (state.pressUsedThisMonth) {
+    return {
+      ok: false,
+      errorIt:
+        "Hai già emesso un comunicato questo mese. Chiudi il mese per ripubblicare.",
+    };
+  }
+
+  const deltas = isHired(state, "communicator")
+    ? PRESS_DELTAS.withCommunicator
+    : PRESS_DELTAS.base;
+  const peopleDelta = tone === "people" ? deltas.primary : deltas.secondary;
+  const politicalDelta =
+    tone === "political" ? deltas.primary : deltas.secondary;
+
   return {
     ok: true,
     state: {
       ...state,
-      peopleRep: CLAMP(state.peopleRep + (tone === "people" ? 3 : -2)),
-      politicalRep: CLAMP(
-        state.politicalRep + (tone === "political" ? 3 : -2),
-      ),
+      pressUsedThisMonth: true,
+      peopleRep: CLAMP(state.peopleRep + peopleDelta),
+      politicalRep: CLAMP(state.politicalRep + politicalDelta),
     },
   };
 }

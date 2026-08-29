@@ -156,6 +156,7 @@ export function advanceMonth(state: GameState): GameState {
     provinceRequest,
     pendingEvents,
     rival,
+    pressUsedThisMonth: false,
     overlay: {
       ...state.overlay,
       activeSlots,

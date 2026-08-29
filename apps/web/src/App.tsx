@@ -4,7 +4,7 @@ import type {
   StaffRole,
 } from "@localmanager/shared";
 import { LAST_RUN_ID_KEY, useGameStore, type ComuneSeedPayload } from "./store/gameStore";
-import { canCloseMonth, electionForecast, firstWinProgress, forecastMonthCash } from "@localmanager/sim";
+import { canCloseMonth, electionForecast, firstWinProgress, forecastMonthCash, nextObjectives, TECHNICIAN_MONTH_CUT } from "@localmanager/sim";
 import { Icon, type IconName } from "./ui/Icon";
 import {
   loadThemePref,
@@ -23,6 +23,12 @@ const roleNames: Record<StaffRole, string> = {
   secretary: "Segretario comunale",
   technician: "Tecnico",
   communicator: "Addetto stampa",
+};
+
+const roleHints: Record<StaffRole, string> = {
+  secretary: "Coordina l'ufficio",
+  technician: "Nuove opere −1 mese",
+  communicator: "Comunicati più efficaci",
 };
 
 const forecastLabels = {
@@ -590,6 +596,7 @@ function GameScreen() {
   const forecast = electionForecast(state);
   const cashForecast = forecastMonthCash(state);
   const firstWin = firstWinProgress(state);
+  const objectives = nextObjectives(state, 3);
   const cashHint =
     cashForecast.net < 0
       ? state.staff.some((m) => m.hired)
@@ -670,13 +677,20 @@ function GameScreen() {
               </div>
               {state.comune.projects.map((project) => {
                 const disabled = state.cash < project.cost;
+                const hasTechnician = state.staff.some(
+                  (member) => member.role === "technician" && member.hired,
+                );
+                const months = hasTechnician
+                  ? Math.max(1, project.months - TECHNICIAN_MONTH_CUT)
+                  : project.months;
                 return (
                   <div className="deal-row" key={project.templateId}>
                     <div>
                       <strong>{project.nameIt}</strong>
                       <span>
-                        {money.format(project.cost)} · {project.months} mesi ·
-                        cittadini +{project.effects.peopleRep} · politica +
+                        {money.format(project.cost)} · {months} mesi
+                        {hasTechnician ? " (tecnico)" : ""} · cittadini +
+                        {project.effects.peopleRep} · politica +
                         {project.effects.politicalRep}
                       </span>
                     </div>
@@ -717,7 +731,10 @@ function GameScreen() {
                 <div className="deal-row" key={member.role}>
                   <div>
                     <strong>{roleNames[member.role]}</strong>
-                    <span>{money.format(member.monthlyCost)}/mese</span>
+                    <span>
+                      {money.format(member.monthlyCost)}/mese ·{" "}
+                      {roleHints[member.role]}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -755,6 +772,12 @@ function GameScreen() {
                 </button>
                 <button
                   type="button"
+                  disabled={state.pressUsedThisMonth}
+                  title={
+                    state.pressUsedThisMonth
+                      ? "Hai già emesso un comunicato questo mese. Chiudi il mese per ripubblicare."
+                      : "Un comunicato al mese: rafforza i cittadini (−politica)."
+                  }
                   onClick={() => issuePressRelease("people")}
                 >
                   <Icon name="megaphone" size={16} />
@@ -762,6 +785,12 @@ function GameScreen() {
                 </button>
                 <button
                   type="button"
+                  disabled={state.pressUsedThisMonth}
+                  title={
+                    state.pressUsedThisMonth
+                      ? "Hai già emesso un comunicato questo mese. Chiudi il mese per ripubblicare."
+                      : "Un comunicato al mese: rafforza la maggioranza (−cittadini)."
+                  }
                   onClick={() => issuePressRelease("political")}
                 >
                   <Icon name="document" size={16} />
@@ -811,16 +840,18 @@ function GameScreen() {
         </div>
 
         <aside className="desk-side">
-          {!firstWin.complete && (
+          {objectives.length > 0 && (
             <section className="panel coach-panel">
               <div className="panel-head">
-                <PanelTitle icon="clipboard">Primi passi</PanelTitle>
+                <PanelTitle icon="clipboard">
+                  {firstWin.complete ? "Obiettivi" : "Primi passi"}
+                </PanelTitle>
               </div>
               <ol className="coach-list">
-                {firstWin.steps.map((step) => (
-                  <li key={step.id} data-done={step.done ? "1" : "0"}>
-                    <span aria-hidden="true">{step.done ? "✓" : "○"}</span>
-                    {step.labelIt}
+                {objectives.map((goal) => (
+                  <li key={goal.id} data-done="0">
+                    <span aria-hidden="true">○</span>
+                    {goal.labelIt}
                   </li>
                 ))}
               </ol>

@@ -25,3 +25,11 @@ export const STAFF_COSTS: Record<StaffRole, number> = {
   technician: 3200,
   communicator: 2600,
 };
+
+/** Months shaved from a new project when a technician is hired. */
+export const TECHNICIAN_MONTH_CUT = 1;
+
+export const PRESS_DELTAS = {
+  base: { primary: 3, secondary: -2 },
+  withCommunicator: { primary: 5, secondary: -1 },
+} as const;
