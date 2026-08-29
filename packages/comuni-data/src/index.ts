@@ -3,9 +3,11 @@ export { loadCatalog, searchCatalog, findComune } from "./catalog.js";
 export { parseCsv, rowsToObjects, parseNumber } from "./csv.js";
 export {
   mapBdapToBudget,
+  mapBdapToProjects,
   mapCupToProjects,
   filterRowsByIstat,
 } from "./mapSeed.js";
+export { resolveBdapDumpUrls } from "./bdapUrls.js";
 export {
   hydrateComune,
   downloadIfMissing,

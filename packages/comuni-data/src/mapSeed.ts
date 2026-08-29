@@ -77,6 +77,7 @@ export function mapBdapToBudget(
 
   const entrate =
     sumCol(entrateRows, [
+      "Accertamento in CC",
       "Accertamenti",
       "accertamenti",
       "Importo",
@@ -85,6 +86,7 @@ export function mapBdapToBudget(
     ]) ?? sumAllNumeric(entrateRows);
   const spese =
     sumCol(speseRows, [
+      "Impegno totale",
       "Impegni",
       "impegni",
       "Importo",
@@ -190,19 +192,91 @@ export function filterRowsByIstat(
   istatId: string,
 ): Record<string, string>[] {
   const id = istatId.padStart(6, "0");
+  const prov = id.slice(0, 3);
+  const com = id.slice(3);
   return rows.filter((row) => {
+    const rowProv = field(row, [
+      "Codice istat provincia",
+      "Codice Istat Provincia",
+    ]).replace(/\D/g, "");
+    const rowCom = field(row, [
+      "Codice istat comune",
+      "Codice Istat Comune",
+    ]).replace(/\D/g, "");
+    if (rowProv && rowCom && rowProv.padStart(3, "0") + rowCom.padStart(3, "0") === id) {
+      return true;
+    }
+    if (rowProv === prov && rowCom.padStart(3, "0") === com) {
+      return true;
+    }
     for (const [key, value] of Object.entries(row)) {
       const k = key.toLowerCase();
+      const digits = value.replace(/\D/g, "");
       if (
         (k.includes("comune") || k.includes("istat") || k.includes("ente")) &&
-        value.replace(/\D/g, "").padStart(6, "0") === id
+        digits.padStart(6, "0") === id &&
+        digits.length >= 5
       ) {
         return true;
       }
-      if (value.replace(/\D/g, "").padStart(6, "0") === id && /^\d{5,6}$/.test(value.replace(/\D/g, ""))) {
+      if (digits.padStart(6, "0") === id && /^\d{5,6}$/.test(digits)) {
         return true;
       }
     }
     return false;
+  });
+}
+
+/** Prefer OpenCUP; when missing, map BDAP conto-capitale interventi (real impegni). */
+export function mapBdapToProjects(
+  speseRows: Record<string, string>[],
+  max = 4,
+): ComuneProjectSeed[] {
+  const capitale = speseRows.filter((row) => {
+    const titolo = field(row, [
+      "Descrizione Titolo Spese",
+      "Descrizione Titolo",
+      "Titolo",
+    ]).toLowerCase();
+    return titolo.includes("capitale");
+  });
+  const scored = capitale
+    .map((row) => {
+      const intervento = field(row, [
+        "Descrizione Intervento",
+        "Descrizione Funzione",
+        "Descrizione",
+      ]);
+      const funzione = field(row, ["Descrizione Funzione", "Funzione"]);
+      const cost =
+        parseNumber(
+          field(row, ["Impegno totale", "Impegni", "Importo", "Valore"]),
+        ) ?? 0;
+      const title = [intervento, funzione].filter(Boolean).join(" — ") || intervento;
+      return { title, cost, natura: funzione || intervento };
+    })
+    .filter((p) => p.title && p.cost > 0)
+    .sort((a, b) => b.cost - a.cost);
+
+  // Dedupe identical titles keeping highest cost
+  const seen = new Set<string>();
+  const unique = scored.filter((p) => {
+    const key = p.title.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, max);
+
+  return unique.map((p, index) => {
+    const blob = `${p.title} ${p.natura}`;
+    const category = pickCategory(blob);
+    return {
+      templateId: `bdap_cap_${index}_${category}`,
+      nameIt: p.title.slice(0, 80),
+      cost: Math.round(p.cost),
+      months: monthsFor(blob),
+      slotId: SLOTS[index % SLOTS.length],
+      effects: CATEGORY_EFFECTS[category],
+    };
   });
 }

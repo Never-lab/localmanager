@@ -1,5 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { buildSeedFromRows, mapBdapToBudget, mapCupToProjects } from "./index.js";
+import {
+  buildSeedFromRows,
+  filterRowsByIstat,
+  mapBdapToBudget,
+  mapBdapToProjects,
+  mapCupToProjects,
+  parseNumber,
+} from "./index.js";
+
+describe("parseNumber", () => {
+  it("reads BDAP dump decimals with a single dot", () => {
+    expect(parseNumber("65168.41")).toBeCloseTo(65168.41);
+  });
+
+  it("still reads Italian thousands", () => {
+    expect(parseNumber("1.200.000")).toBe(1_200_000);
+    expect(parseNumber("1.200.000,50")).toBeCloseTo(1_200_000.5);
+  });
+});
+
+describe("filterRowsByIstat", () => {
+  it("matches BDAP split provincia+comune codes", () => {
+    const rows = filterRowsByIstat(
+      [
+        {
+          "Codice istat provincia": "069",
+          "Codice istat comune": "084",
+          "Denominazione Ente": "COMUNE DI SANTA MARIA IMBARO",
+          "Accertamento in CC": "100",
+        },
+        {
+          "Codice istat provincia": "069",
+          "Codice istat comune": "001",
+          "Accertamento in CC": "50",
+        },
+      ],
+      "069084",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]["Denominazione Ente"]).toContain("SANTA MARIA");
+  });
+});
 
 describe("mapBdapToBudget", () => {
   it("maps entrate/spese totals into monthly game fields", () => {
@@ -25,6 +66,58 @@ describe("mapBdapToBudget", () => {
     expect(budget!.monthlyMaintenance).toBe(80_000);
     expect(budget!.sourceYear).toBe(2023);
     expect(budget!.openingCash).toBeGreaterThan(0);
+  });
+
+  it("maps real BDAP column names Accertamento in CC / Impegno totale", () => {
+    const budget = mapBdapToBudget(
+      [
+        {
+          "Codice istat provincia": "069",
+          "Codice istat comune": "084",
+          "Esercizio Finanziario": "2015",
+          "Accertamento in CC": "1200000.00",
+        },
+      ],
+      [
+        {
+          "Codice istat provincia": "069",
+          "Codice istat comune": "084",
+          "Impegno totale": "960000.00",
+        },
+      ],
+      ["https://example.test/entrate", "https://example.test/spese"],
+    );
+    expect(budget).not.toBeNull();
+    expect(budget!.monthlyBaseIncome).toBe(100_000);
+    expect(budget!.monthlyMaintenance).toBe(80_000);
+    expect(budget!.sourceYear).toBe(2015);
+  });
+});
+
+describe("mapBdapToProjects", () => {
+  it("builds projects from conto capitale interventi", () => {
+    const projects = mapBdapToProjects([
+      {
+        "Descrizione Titolo Spese": "SPESE IN CONTO CAPITALE",
+        "Descrizione Intervento": "ACQUISIZIONE DI BENI IMMOBILI",
+        "Descrizione Funzione": "ISTRUZIONE PUBBLICA",
+        "Impegno totale": "280000.00",
+      },
+      {
+        "Descrizione Titolo Spese": "SPESE IN CONTO CAPITALE",
+        "Descrizione Intervento": "ACQUISIZIONE DI BENI MOBILI",
+        "Descrizione Funzione": "VIABILITA",
+        "Impegno totale": "200000.00",
+      },
+      {
+        "Descrizione Titolo Spese": "SPESE CORRENTI",
+        "Descrizione Intervento": "PERSONALE",
+        "Impegno totale": "500000.00",
+      },
+    ]);
+    expect(projects.length).toBeGreaterThanOrEqual(2);
+    expect(projects[0].cost).toBe(280_000);
+    expect(projects[0].nameIt.toLowerCase()).toMatch(/immobili|istruzione/);
   });
 });
 
