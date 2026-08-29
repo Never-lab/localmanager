@@ -22,6 +22,20 @@ import worker
 
 
 class WorkerTests(unittest.TestCase):
+    def test_normalize_api_url_adds_https_when_scheme_missing(self) -> None:
+        self.assertEqual(
+            worker.normalize_api_url("web-api.up.railway.app"),
+            "https://web-api.up.railway.app",
+        )
+        self.assertEqual(
+            worker.normalize_api_url("https://web-api.up.railway.app/"),
+            "https://web-api.up.railway.app",
+        )
+        self.assertEqual(
+            worker.normalize_api_url("http://api:3001"),
+            "http://api:3001",
+        )
+
     def test_process_job_uses_santa_maria_imbaro_query(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with (

@@ -15,9 +15,18 @@ from render import render_map
 
 
 POLL_SECONDS = 3
-API_URL = os.getenv("LOCALMANAGER_API_URL", "http://api:3001").rstrip("/")
 DATA_DIR = Path(os.getenv("LOCALMANAGER_MAPS_DATA_DIR", "/data/maps"))
 OSM_QUERY = "Santa Maria Imbaro, Abruzzo, Italy"
+
+
+def normalize_api_url(value: str) -> str:
+    url = value.strip().rstrip("/")
+    if url and "://" not in url:
+        url = f"https://{url}"
+    return url
+
+
+API_URL = normalize_api_url(os.getenv("LOCALMANAGER_API_URL", "http://api:3001"))
 
 
 def _safe_name(value: object) -> str:
