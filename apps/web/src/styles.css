@@ -559,7 +559,9 @@ fieldset legend {
 }
 
 .map-stage img {
-  object-fit: cover;
+  /* cover ritagliava il PNG quadrato → effetto "zoom" sul centro */
+  object-fit: contain;
+  object-position: center;
 }
 
 .map-stage svg {
