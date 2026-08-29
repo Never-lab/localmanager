@@ -19,7 +19,15 @@ import { nextRandom } from "./rng.js";
 const comune = loadComune();
 
 export function advanceMonth(state: GameState): GameState {
+  if (state.status !== "playing") {
+    return state;
+  }
+
   const month = state.month + 1;
+  if (month > state.mandateMonths) {
+    return state;
+  }
+
   const staffCosts = state.staff
     .filter((member) => member.hired)
     .reduce((total, member) => total + member.monthlyCost, 0);
