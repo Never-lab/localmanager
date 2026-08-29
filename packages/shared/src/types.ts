@@ -25,14 +25,28 @@ export interface CompletedProject {
 export interface RivalState {
   heat: number; // 0..100
   lastMoveMonth: number | null;
-  pendingEvent: RivalEvent | null;
 }
 
-export type RivalEventKind = "press_attack" | "promises" | "meter_erosion";
+export interface EventEffects {
+  cash?: number;
+  peopleRep?: number;
+  politicalRep?: number;
+  rivalHeat?: number;
+}
 
-export interface RivalEvent {
-  kind: RivalEventKind;
-  messageIt: string;
+export interface PendingEventChoice {
+  id: string;
+  labelIt: string;
+  effects: EventEffects;
+  requiresCash?: number;
+}
+
+export interface PendingEvent {
+  id: string;
+  templateId: string;
+  titleIt: string;
+  bodyIt: string;
+  choices: PendingEventChoice[];
 }
 
 export interface LogEntry {
@@ -65,6 +79,7 @@ export interface GameState {
   activeProjects: ActiveProject[];
   completedProjects: CompletedProject[];
   provinceRequest: ProvinceFundingRequest | null;
+  pendingEvents: PendingEvent[];
   rival: RivalState;
   overlay: MapOverlay;
   log: LogEntry[];

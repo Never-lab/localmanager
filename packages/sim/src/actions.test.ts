@@ -5,10 +5,11 @@ import {
   hireStaff,
   issuePressRelease,
   requestProvinceFunds,
-  respondToRival,
+  resolveEvent,
   startProject,
 } from "./actions.js";
 import { createInitialGameState } from "./createInitial.js";
+import { RIVAL_PRESS_TEMPLATE_ID, getTemplate, instantiateEvent } from "./events.js";
 import { loadComune } from "./loadComune.js";
 
 describe("desk actions", () => {
@@ -49,7 +50,10 @@ describe("desk actions", () => {
   });
 
   it("hiring a communicator increases next month's staff burn", () => {
-    const state = createInitialGameState({ mayorName: "Test", seed: 1 });
+    const state = {
+      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
+      pendingEvents: [],
+    };
     const result = hireStaff(state, "communicator");
 
     expect(result.ok).toBe(true);
@@ -150,85 +154,91 @@ describe("desk actions", () => {
     });
   });
 
-  it("ignoring a rival clears the event and costs people reputation", () => {
-    const state = {
-      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
-      rival: {
-        heat: 35,
-        lastMoveMonth: 6,
-        pendingEvent: {
-          kind: "press_attack" as const,
-          messageIt: "Attacco.",
-        },
-      },
-    };
-
-    const result = respondToRival(state, "ignore");
-
-    expect(result).toEqual({
-      ok: true,
-      state: {
-        ...state,
-        peopleRep: state.peopleRep - 2,
-        rival: { ...state.rival, pendingEvent: null },
-      },
-    });
-  });
-
-  it("countering a rival clears the event, pays cash, and improves political standing", () => {
-    const state = {
-      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
-      rival: {
-        heat: 35,
-        lastMoveMonth: 6,
-        pendingEvent: {
-          kind: "press_attack" as const,
-          messageIt: "Attacco.",
-        },
-      },
-    };
-
-    const result = respondToRival(state, "counter");
-
-    expect(result).toEqual({
-      ok: true,
-      state: {
-        ...state,
-        cash: state.cash - 5_000,
-        politicalRep: state.politicalRep + 2,
-        rival: {
-          ...state.rival,
-          heat: state.rival.heat - 3,
-          pendingEvent: null,
-        },
-      },
-    });
-  });
-
-  it("rejects a rival response when there is no pending event", () => {
+  it("seeds one pending event on a new game", () => {
     const state = createInitialGameState({ mayorName: "Test", seed: 1 });
+    expect(state.pendingEvents).toHaveLength(1);
+  });
 
-    expect(respondToRival(state, "ignore")).toEqual({
+  it("resolveEvent applies effects, clears the event, and logs deltas", () => {
+    const template = getTemplate("youth_petition")!;
+    const event = instantiateEvent(template, "evt-1");
+    const state = {
+      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
+      pendingEvents: [event],
+    };
+
+    const result = resolveEvent(state, "evt-1", "commit");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pendingEvents).toEqual([]);
+    expect(result.state.peopleRep).toBe(state.peopleRep + 4);
+    expect(result.state.politicalRep).toBe(state.politicalRep - 2);
+    expect(result.state.log.at(-1)?.textIt).toContain("Popolo +4");
+  });
+
+  it("ignoring a rival event clears it and costs people reputation", () => {
+    const event = instantiateEvent(
+      getTemplate(RIVAL_PRESS_TEMPLATE_ID)!,
+      "rival-1",
+    );
+    const state = {
+      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
+      pendingEvents: [event],
+    };
+
+    const result = resolveEvent(state, "rival-1", "ignore");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pendingEvents).toEqual([]);
+    expect(result.state.peopleRep).toBe(state.peopleRep - 2);
+  });
+
+  it("countering a rival event pays cash and improves political standing", () => {
+    const event = instantiateEvent(
+      getTemplate(RIVAL_PRESS_TEMPLATE_ID)!,
+      "rival-1",
+    );
+    const state = {
+      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
+      pendingEvents: [event],
+    };
+
+    const result = resolveEvent(state, "rival-1", "counter");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.cash).toBe(state.cash - 5_000);
+    expect(result.state.politicalRep).toBe(state.politicalRep + 2);
+    expect(result.state.rival.heat).toBe(state.rival.heat - 3);
+    expect(result.state.pendingEvents).toEqual([]);
+  });
+
+  it("rejects resolveEvent when the event is missing", () => {
+    const state = {
+      ...createInitialGameState({ mayorName: "Test", seed: 1 }),
+      pendingEvents: [],
+    };
+
+    expect(resolveEvent(state, "missing", "ignore")).toEqual({
       ok: false,
-      errorIt: "Nessun evento rivale da gestire.",
+      errorIt: "Nessun evento da gestire.",
     });
   });
 
-  it("rejects a rival counter when cash is insufficient", () => {
+  it("rejects a paid choice when cash is insufficient", () => {
+    const event = instantiateEvent(
+      getTemplate(RIVAL_PRESS_TEMPLATE_ID)!,
+      "rival-1",
+    );
     const state = {
       ...createInitialGameState({ mayorName: "Test", seed: 1 }),
       cash: 4_999,
-      rival: {
-        heat: 35,
-        lastMoveMonth: 6,
-        pendingEvent: {
-          kind: "press_attack" as const,
-          messageIt: "Attacco.",
-        },
-      },
+      pendingEvents: [event],
     };
 
-    expect(respondToRival(state, "counter")).toEqual({
+    expect(resolveEvent(state, "rival-1", "counter")).toEqual({
       ok: false,
       errorIt: "Cassa insufficiente.",
     });

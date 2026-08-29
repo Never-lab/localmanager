@@ -5,6 +5,7 @@ import type {
   StaffRole,
 } from "@localmanager/shared";
 import { LAST_RUN_ID_KEY, useGameStore } from "./store/gameStore";
+import { canCloseMonth, electionForecast } from "@localmanager/sim";
 import "./styles.css";
 
 const money = new Intl.NumberFormat("it-IT", {
@@ -29,6 +30,12 @@ const roleNames: Record<StaffRole, string> = {
   technician: "Tecnico",
   communicator: "Addetto stampa",
 };
+
+const forecastLabels = {
+  ahead: "in vantaggio",
+  toss_up: "in bilico",
+  behind: "in ritardo",
+} as const;
 
 const slotPositions: Record<MapSlotId, [number, number]> = {
   centro: [47, 53],
@@ -269,9 +276,16 @@ function GameScreen() {
     fireStaff,
     requestProvinceFunds,
     issuePressRelease,
-    respondToRival,
+    resolveEvent,
     closeMonth,
   } = useGameStore.getState();
+  const forecast = electionForecast(state);
+  const monthClosable = canCloseMonth(state);
+  const closeBlockedReason = pending
+    ? "Attendi il completamento della mappa prima di proseguire."
+    : !monthClosable
+      ? "Risolvi prima gli eventi in coda."
+      : "Chiudi il mese corrente.";
 
   return (
     <Frame>
@@ -285,6 +299,11 @@ function GameScreen() {
           <strong>
             Mese {state.month} / {state.mandateMonths}
           </strong>
+          <span>
+            Verso le urne: {forecastLabels[forecast.band]} (
+            {forecast.margin > 0 ? "+" : ""}
+            {Math.round(forecast.margin)})
+          </span>
         </div>
       </header>
 
@@ -401,37 +420,38 @@ function GameScreen() {
         </section>
 
         <section className="paper-card rival-card">
-          <h2>Opposizione</h2>
-          <p>
-            {state.rival.pendingEvent?.messageIt ??
-              "Nessuna iniziativa pubblica del rivale questo mese."}
-          </p>
-          <div className="button-pair">
-            <button
-              disabled={!state.rival.pendingEvent}
-              title={
-                state.rival.pendingEvent
-                  ? "Non rispondere all'attacco."
-                  : "Nessun attacco da gestire: chiudi altri mesi."
-              }
-              onClick={() => respondToRival("ignore")}
-            >
-              Ignora
-            </button>
-            <button
-              disabled={!state.rival.pendingEvent || state.cash < 5_000}
-              title={
-                !state.rival.pendingEvent
-                  ? "Nessun attacco da gestire: chiudi altri mesi."
-                  : state.cash < 5_000
-                    ? "Servono almeno € 5.000 in cassa."
-                    : "Replica pubblicamente al costo di € 5.000."
-              }
-              onClick={() => respondToRival("counter")}
-            >
-              Replica
-            </button>
-          </div>
+          <h2>Eventi</h2>
+          {state.pendingEvents.length === 0 ? (
+            <p>Nessun evento da gestire — puoi chiudere il mese.</p>
+          ) : (
+            state.pendingEvents.map((event) => (
+              <div key={event.id} className="event-card">
+                <strong>{event.titleIt}</strong>
+                <p>{event.bodyIt}</p>
+                <div className="button-pair">
+                  {event.choices.map((choice) => {
+                    const needsCash =
+                      choice.requiresCash !== undefined &&
+                      state.cash < choice.requiresCash;
+                    return (
+                      <button
+                        key={choice.id}
+                        disabled={needsCash}
+                        title={
+                          needsCash
+                            ? `Servono almeno ${money.format(choice.requiresCash!)} in cassa.`
+                            : choice.labelIt
+                        }
+                        onClick={() => resolveEvent(event.id, choice.id)}
+                      >
+                        {choice.labelIt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
         </section>
       </div>
 
@@ -458,12 +478,8 @@ function GameScreen() {
         </div>
         <button
           className="primary large"
-          disabled={pending}
-          title={
-            pending
-              ? "Attendi il completamento della mappa prima di proseguire."
-              : "Chiudi il mese corrente."
-          }
+          disabled={pending || !monthClosable}
+          title={closeBlockedReason}
           onClick={() => void closeMonth()}
         >
           {pending ? "Aggiorno la mappa…" : "Chiudi mese"}

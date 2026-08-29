@@ -46,11 +46,28 @@ describe("game store", () => {
   it("advances a guest game without contacting the API", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     useGameStore.getState().startGame("Ada Rossi");
+    useGameStore.setState({
+      state: {
+        ...useGameStore.getState().state!,
+        pendingEvents: [],
+      },
+    });
 
     await useGameStore.getState().closeMonth();
 
     expect(useGameStore.getState().state?.month).toBe(2);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("blocks closing the month while events are pending", async () => {
+    useGameStore.getState().startGame("Ada Rossi");
+
+    await useGameStore.getState().closeMonth();
+
+    expect(useGameStore.getState().state?.month).toBe(1);
+    expect(useGameStore.getState().errorIt).toBe(
+      "Risolvi prima gli eventi in coda.",
+    );
   });
 
   it("ignores a second close while the first close is saving", async () => {
@@ -61,7 +78,10 @@ describe("game store", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockReturnValue(savePending);
     useGameStore.setState({
       screen: "game",
-      state: createInitialGameState({ mayorName: "Ada Rossi" }),
+      state: {
+        ...createInitialGameState({ mayorName: "Ada Rossi" }),
+        pendingEvents: [],
+      },
       token: "token",
       runId: "run-1",
     });
@@ -106,6 +126,7 @@ describe("game store", () => {
 
   it("requests and installs a fresh server map after a dirty month", async () => {
     const state = createInitialGameState({ mayorName: "Ada Rossi", seed: 1 });
+    state.pendingEvents = [];
     state.activeProjects = [
       { templateId: "road_fix", monthsRemaining: 1, slotId: "viabilita_est" },
     ];

@@ -120,33 +120,64 @@ export function issuePressRelease(
   };
 }
 
-export function respondToRival(
+export function resolveEvent(
   state: GameState,
-  choice: "ignore" | "counter",
+  eventId: string,
+  choiceId: string,
 ): ActionResult {
-  if (!state.rival.pendingEvent) {
-    return { ok: false, errorIt: "Nessun evento rivale da gestire." };
+  const event = state.pendingEvents.find((candidate) => candidate.id === eventId);
+  if (!event) {
+    return { ok: false, errorIt: "Nessun evento da gestire." };
   }
-  if (choice === "counter" && state.cash < 5_000) {
+  const choice = event.choices.find((candidate) => candidate.id === choiceId);
+  if (!choice) {
+    return { ok: false, errorIt: "Scelta non valida." };
+  }
+  if (
+    choice.requiresCash !== undefined &&
+    state.cash < choice.requiresCash
+  ) {
     return { ok: false, errorIt: "Cassa insufficiente." };
   }
+
+  const effects = choice.effects;
+  const deltaParts: string[] = [];
+  if (effects.peopleRep) deltaParts.push(`Popolo ${signed(effects.peopleRep)}`);
+  if (effects.politicalRep) {
+    deltaParts.push(`Politica ${signed(effects.politicalRep)}`);
+  }
+  if (effects.rivalHeat) {
+    deltaParts.push(`Rivale ${signed(effects.rivalHeat)}`);
+  }
+  if (effects.cash) deltaParts.push(`Cassa ${signed(effects.cash)}`);
 
   return {
     ok: true,
     state: {
       ...state,
-      cash: state.cash - (choice === "counter" ? 5_000 : 0),
-      peopleRep: CLAMP(state.peopleRep - (choice === "ignore" ? 2 : 0)),
-      politicalRep: CLAMP(
-        state.politicalRep + (choice === "counter" ? 2 : 0),
-      ),
+      cash: state.cash + (effects.cash ?? 0),
+      peopleRep: CLAMP(state.peopleRep + (effects.peopleRep ?? 0)),
+      politicalRep: CLAMP(state.politicalRep + (effects.politicalRep ?? 0)),
       rival: {
         ...state.rival,
-        heat: CLAMP(
-          state.rival.heat - (choice === "counter" ? 3 : 0),
-        ),
-        pendingEvent: null,
+        heat: CLAMP(state.rival.heat + (effects.rivalHeat ?? 0)),
       },
+      pendingEvents: state.pendingEvents.filter(
+        (candidate) => candidate.id !== eventId,
+      ),
+      log: [
+        ...state.log,
+        {
+          month: state.month,
+          textIt: deltaParts.length
+            ? `${event.titleIt}: ${deltaParts.join(" · ")}`
+            : `${event.titleIt}: scelta registrata.`,
+        },
+      ],
     },
   };
+}
+
+function signed(value: number): string {
+  return value > 0 ? `+${value}` : `${value}`;
 }

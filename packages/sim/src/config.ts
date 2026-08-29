@@ -9,6 +9,7 @@ export const POPULATION_NOISE_RANGE = 1;
 export const INITIAL_PEOPLE_REP = 50;
 export const INITIAL_POLITICAL_REP = 50;
 export const INITIAL_RIVAL_HEAT = 35;
+export const ELECTION_TOSS_UP_MARGIN = 5;
 export const RNG_MULTIPLIER = 1664525;
 export const RNG_INCREMENT = 1013904223;
 export const RNG_MODULUS = 0x1_0000_0000;

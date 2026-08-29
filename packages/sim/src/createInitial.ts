@@ -6,12 +6,14 @@ import {
   MANDATE_MONTHS,
   STAFF_COSTS,
 } from "./config.js";
+import { drawMonthlyEvent } from "./events.js";
 import { loadComune } from "./loadComune.js";
 
 const STAFF_ROLES: StaffRole[] = ["secretary", "technician", "communicator"];
 
 export function createInitialGameState(options: NewGameOptions): GameState {
   const comune = loadComune();
+  const drawn = drawMonthlyEvent(options.seed ?? Date.now(), false);
 
   return {
     comuneId: comune.meta.comuneId,
@@ -31,10 +33,10 @@ export function createInitialGameState(options: NewGameOptions): GameState {
     activeProjects: [],
     completedProjects: [],
     provinceRequest: null,
+    pendingEvents: [drawn.event],
     rival: {
       heat: INITIAL_RIVAL_HEAT,
       lastMoveMonth: null,
-      pendingEvent: null,
     },
     overlay: {
       activeSlots: [],
@@ -43,6 +45,6 @@ export function createInitialGameState(options: NewGameOptions): GameState {
     },
     log: [],
     status: "playing",
-    seed: options.seed ?? Date.now(),
+    seed: drawn.seed,
   };
 }

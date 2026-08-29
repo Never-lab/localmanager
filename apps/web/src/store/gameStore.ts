@@ -5,12 +5,13 @@ import type {
 } from "@localmanager/shared";
 import {
   advanceMonth,
+  canCloseMonth,
   createInitialGameState,
   fireStaff as fireStaffAction,
   hireStaff as hireStaffAction,
   issuePressRelease as issuePressReleaseAction,
   requestProvinceFunds as requestProvinceFundsAction,
-  respondToRival as respondToRivalAction,
+  resolveEvent as resolveEventAction,
   startProject as startProjectAction,
   type ActionResult,
 } from "@localmanager/sim";
@@ -39,7 +40,7 @@ interface GameStore {
   fireStaff: (role: StaffRole) => void;
   requestProvinceFunds: (amount: number) => void;
   issuePressRelease: (tone: "people" | "political") => void;
-  respondToRival: (choice: "ignore" | "counter") => void;
+  resolveEvent: (eventId: string, choiceId: string) => void;
   closeMonth: () => Promise<void>;
   resumeGame: () => Promise<void>;
   returnToMenu: () => void;
@@ -148,14 +149,20 @@ export const useGameStore = create<GameStore>((set, get) => {
       const state = get().state;
       if (state) apply(issuePressReleaseAction(state, tone));
     },
-    respondToRival: (choice) => {
+    resolveEvent: (eventId, choiceId) => {
       const state = get().state;
-      if (state) apply(respondToRivalAction(state, choice));
+      if (state) apply(resolveEventAction(state, eventId, choiceId));
     },
 
     closeMonth: async () => {
       const current = get().state;
       if (!current || get().mapJobPending) return;
+      if (!canCloseMonth(current)) {
+        set({
+          errorIt: "Risolvi prima gli eventi in coda.",
+        });
+        return;
+      }
       set({ mapJobPending: true });
       try {
         const next = advanceMonth(current);
