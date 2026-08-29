@@ -34,7 +34,7 @@ Generate a public domain, then open `/api/health`.
 
 Variables:
 
-- `LOCALMANAGER_API_URL` → public URL of `web-api` **without** trailing slash
+- `LOCALMANAGER_API_URL` → public URL of `web-api` **with** `https://`, no trailing slash
 - `MAPS_WORKER_KEY` → **same** as `web-api`
 - `LOCALMANAGER_MAPS_FIXTURE` → `1` for staging stub maps
 

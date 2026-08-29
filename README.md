@@ -26,7 +26,7 @@ Use Railway's Postgres reference for `DATABASE_URL` on `web-api`.
 Generate long, independent random values for `LOCALMANAGER_SECRET` and
 `MAPS_WORKER_KEY`; the worker key must match on both services.
 Set `LOCALMANAGER_API_URL` on `maps` to the public Railway URL of `web-api`
-without a trailing slash. Railway supplies `PORT` to `web-api`.
+with scheme, e.g. `https://….up.railway.app` (no trailing slash). Railway supplies `PORT` to `web-api`.
 
 The `web-api` build runs `npm run build` at the repository root, which
 builds shared, sim, web, and API in order so `apps/web/dist` exists. The API
