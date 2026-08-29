@@ -5,6 +5,7 @@ dist/
 *.log
 .DS_Store
 coverage/
+*.tsbuildinfo
 .worktrees/
 .superpowers/
 data/**/generated/
