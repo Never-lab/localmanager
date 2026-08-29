@@ -19,7 +19,7 @@ Provision one Railway Postgres and two services from this repository:
 
 | Service | Root directory | Build / start | Required variables |
 | --- | --- | --- | --- |
-| `web-api` | `/` (repo root) | Build `npm ci && npm run build` · Start `npm run start -w @localmanager/api` · Health `/api/health` | `DATABASE_URL`, `LOCALMANAGER_SECRET`, `MAPS_WORKER_KEY` |
+| `web-api` | `/` (repo root) | Railpack uses root `build` + `start` scripts (see `railpack.json`). Health `/api/health` | `DATABASE_URL`, `LOCALMANAGER_SECRET`, `MAPS_WORKER_KEY` |
 | `maps` | `services/maps` | Dockerfile in that folder | `LOCALMANAGER_API_URL`, `MAPS_WORKER_KEY` (same value), optional `LOCALMANAGER_MAPS_FIXTURE=1` |
 
 Use Railway's Postgres reference for `DATABASE_URL` on `web-api`.
