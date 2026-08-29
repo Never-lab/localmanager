@@ -1,6 +1,16 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { MapSlotId, ProjectTemplateId } from "@localmanager/shared";
+import budget from "../../../data/comuni/santa-maria-imbaro/budget.json" with {
+  type: "json",
+};
+import demographics from "../../../data/comuni/santa-maria-imbaro/demographics.json" with {
+  type: "json",
+};
+import meta from "../../../data/comuni/santa-maria-imbaro/meta.json" with {
+  type: "json",
+};
+import projects from "../../../data/comuni/santa-maria-imbaro/projects.json" with {
+  type: "json",
+};
 
 interface ComuneMeta {
   comuneId: "069084";
@@ -39,21 +49,11 @@ export interface ComuneData {
   projects: ProjectTemplate[];
 }
 
-const comuneDirectory = new URL(
-  "../../../data/comuni/santa-maria-imbaro/",
-  import.meta.url,
-);
-
-function readJson<T>(filename: string): T {
-  const path = fileURLToPath(new URL(filename, comuneDirectory));
-  return JSON.parse(readFileSync(path, "utf8")) as T;
-}
-
 export function loadComune(): ComuneData {
   return {
-    meta: readJson<ComuneMeta>("meta.json"),
-    demographics: readJson<Demographics>("demographics.json"),
-    budget: readJson<Budget>("budget.json"),
-    projects: readJson<ProjectTemplate[]>("projects.json"),
+    meta: meta as ComuneMeta,
+    demographics: demographics as Demographics,
+    budget: budget as Budget,
+    projects: projects as ProjectTemplate[],
   };
 }
