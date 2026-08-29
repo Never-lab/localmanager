@@ -120,12 +120,24 @@ describe("game store", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(new Response("{}", { status: 201 }))
-      .mockResolvedValueOnce(
-        new Response(new Blob(["png"]), {
-          status: 200,
-          headers: { "x-map-version": "1", "content-type": "image/png" },
-        }),
-      );
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get(name: string) {
+            const key = name.toLowerCase();
+            if (key === "x-map-version") return "1";
+            if (key === "content-type") return "image/png";
+            return null;
+          },
+        },
+        // Avoid Response(Blob).blob() — jsdom on CI throws "object.stream is not a function".
+        async blob() {
+          return new Blob([Uint8Array.from([137, 80, 78, 71])], {
+            type: "image/png",
+          });
+        },
+      } as Response);
 
     await useGameStore.getState().closeMonth();
 
