@@ -42,7 +42,7 @@ def render_map(
     """Render a basemap and colored slot markers to a PNG."""
     output = Path(out_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    use_fixture = fixture_mode or os.getenv("LOCALMANAGER_MAPS_FIXTURE", "1") == "1"
+    use_fixture = fixture_mode or os.getenv("LOCALMANAGER_MAPS_FIXTURE", "0") == "1"
 
     if use_fixture:
         with Image.open(FIXTURE_PATH) as source:
@@ -73,7 +73,12 @@ def render_map(
 def _self_test() -> None:
     with tempfile.TemporaryDirectory() as directory:
         output = Path(directory) / "map.png"
-        render_map("Atessa, Italy", [{"x": 0.5, "y": 0.5}], str(output), True)
+        render_map(
+            "Santa Maria Imbaro, Abruzzo, Italy",
+            [{"x": 0.5, "y": 0.5}],
+            str(output),
+            True,
+        )
         with Image.open(output) as image:
             image.verify()
         if output.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":

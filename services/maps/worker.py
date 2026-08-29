@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -16,6 +17,7 @@ from render import render_map
 POLL_SECONDS = 3
 API_URL = os.getenv("LOCALMANAGER_API_URL", "http://api:3001").rstrip("/")
 DATA_DIR = Path(os.getenv("LOCALMANAGER_MAPS_DATA_DIR", "/data/maps"))
+OSM_QUERY = "Santa Maria Imbaro, Abruzzo, Italy"
 
 
 def _safe_name(value: object) -> str:
@@ -76,12 +78,19 @@ def process_job(
     slots = [{"name": slot} for slot in job_input.get("overlaySlots", [])]
 
     try:
-        render_map("Atessa, Chieti, Italy", slots, str(temporary_path))
+        render_map(OSM_QUERY, slots, str(temporary_path))
         version = complete_job(session, worker_key, job_id, temporary_path)
-        temporary_path.replace(run_dir / f"v{version}.png")
     except Exception as error:
         temporary_path.unlink(missing_ok=True)
         fail_job(session, worker_key, job_id, error)
+        return
+
+    try:
+        temporary_path.replace(run_dir / f"v{version}.png")
+    except OSError as error:
+        logging.warning(
+            "Map job %s completed, but local file rename failed: %s", job_id, error
+        )
 
 
 def main() -> None:
@@ -91,7 +100,12 @@ def main() -> None:
 
     with requests.Session() as session:
         while True:
-            job = claim_job(session, worker_key)
+            try:
+                job = claim_job(session, worker_key)
+            except requests.RequestException as error:
+                logging.warning("Map job poll failed: %s", error)
+                time.sleep(POLL_SECONDS)
+                continue
             if job is None:
                 time.sleep(POLL_SECONDS)
                 continue
